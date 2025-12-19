@@ -67,5 +67,15 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
+  },
+
+  // Icon configuration - bundle icons at build time for production
+  icon: {
+    // Use local icon sets instead of fetching from API
+    serverBundle: 'local',
+    clientBundle: {
+      // Scan components for icon usage and bundle them
+      scan: true
+    }
   }
 })

@@ -6,6 +6,22 @@ export const Users: CollectionConfig = {
   admin: {
     useAsTitle: 'email'
   },
+  access: {
+    // Allow anyone to create a new user (register)
+    create: () => true,
+    // Users can read their own data
+    read: ({ req: { user } }) => {
+      if (!user) return false
+      return { id: { equals: user.id } }
+    },
+    // Users can update their own data
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      return { id: { equals: user.id } }
+    },
+    // Disable delete for regular users
+    delete: () => false,
+  },
   fields: [
     {
       name: 'name',
