@@ -46,17 +46,17 @@ RUN pnpm build
 # ============================================
 # Production Runner
 # ============================================
-FROM base AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
-# Copy Payload build (non-standalone approach for reliability)
-# Copy entire .next directory
+# Copy Payload build
 COPY --from=payload-builder /app/payload/.next ./payload/.next
 COPY --from=payload-builder /app/payload/public ./payload/public
 COPY --from=payload-builder /app/payload/package.json ./payload/
-# Copy root node_modules (contains most deps in pnpm workspace)
-COPY --from=deps /app/node_modules ./node_modules
-# Link payload's node_modules to root (symlinks don't work in Docker, so we'll use NODE_PATH)
+# Install production deps fresh with npm (avoids pnpm symlink issues)
+WORKDIR /app/payload
+RUN npm install --omit=dev next@15
+WORKDIR /app
 
 # Copy Nuxt output
 COPY --from=nuxt-builder /app/nuxt/.output ./nuxt/.output

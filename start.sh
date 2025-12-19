@@ -6,7 +6,7 @@ echo "🚀 Starting BORING Meal Planner..."
 # Start Payload CMS in background on port 3002
 echo "📦 Starting Payload CMS on port 3002..."
 cd /app/payload
-PORT=3002 HOSTNAME=0.0.0.0 NODE_OPTIONS="--no-deprecation" NODE_PATH=/app/node_modules node /app/node_modules/next/dist/bin/next start &
+PORT=3002 HOSTNAME=0.0.0.0 NODE_OPTIONS="--no-deprecation" npx next start &
 PAYLOAD_PID=$!
 
 # Wait for Payload to be ready
