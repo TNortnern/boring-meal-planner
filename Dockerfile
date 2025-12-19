@@ -49,15 +49,14 @@ RUN pnpm build
 FROM base AS runner
 WORKDIR /app
 
-# Copy Payload standalone build
-# The standalone output contains server.js and minimal node_modules
-# We need to preserve the structure and add static + public files
-COPY --from=payload-builder /app/payload/.next/standalone ./payload
-COPY --from=payload-builder /app/payload/.next/static ./payload/.next/static
+# Copy Payload build (non-standalone approach for reliability)
+# Copy entire .next directory
+COPY --from=payload-builder /app/payload/.next ./payload/.next
 COPY --from=payload-builder /app/payload/public ./payload/public
-# Copy additional node_modules that standalone needs (Payload-specific)
-# The 'next' package is in the workspace root node_modules
-COPY --from=payload-builder /app/node_modules/next ./payload/node_modules/next
+COPY --from=payload-builder /app/payload/package.json ./payload/
+# Copy all necessary node_modules for Payload
+COPY --from=deps /app/node_modules ./payload/node_modules
+COPY --from=deps /app/payload/node_modules ./payload/node_modules
 
 # Copy Nuxt output
 COPY --from=nuxt-builder /app/nuxt/.output ./nuxt/.output
