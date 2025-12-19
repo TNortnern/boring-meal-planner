@@ -32,17 +32,24 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    // Proxy Payload API
+    '/api/**': {
+      proxy: {
+        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3002'}/api/**`
+      }
+    },
+
     // Proxy Next.js static assets (required for Payload admin)
     '/_next/**': {
       proxy: {
-        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://payload:3000'}/_next/**`
+        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3002'}/_next/**`
       }
     },
 
     // Proxy Payload admin interface
     '/admin/**': {
       proxy: {
-        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://payload:3000'}/admin/**`
+        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3002'}/admin/**`
       }
     }
   },
