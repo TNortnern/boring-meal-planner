@@ -50,9 +50,14 @@ FROM base AS runner
 WORKDIR /app
 
 # Copy Payload standalone build
+# The standalone output contains server.js and minimal node_modules
+# We need to preserve the structure and add static + public files
 COPY --from=payload-builder /app/payload/.next/standalone ./payload
 COPY --from=payload-builder /app/payload/.next/static ./payload/.next/static
 COPY --from=payload-builder /app/payload/public ./payload/public
+# Copy additional node_modules that standalone needs (Payload-specific)
+# The 'next' package is in the workspace root node_modules
+COPY --from=payload-builder /app/node_modules/next ./payload/node_modules/next
 
 # Copy Nuxt output
 COPY --from=nuxt-builder /app/nuxt/.output ./nuxt/.output
