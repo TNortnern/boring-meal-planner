@@ -46,7 +46,7 @@ export const Users: CollectionConfig = {
       name: 'height',
       type: 'group',
       fields: [
-        { name: 'value', type: 'number', required: true },
+        { name: 'value', type: 'number' },
         {
           name: 'unit',
           type: 'select',
@@ -62,7 +62,7 @@ export const Users: CollectionConfig = {
       name: 'currentWeight',
       type: 'group',
       fields: [
-        { name: 'value', type: 'number', required: true },
+        { name: 'value', type: 'number' },
         {
           name: 'unit',
           type: 'select',
