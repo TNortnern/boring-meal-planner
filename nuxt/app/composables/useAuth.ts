@@ -25,8 +25,8 @@ export interface User {
 }
 
 const _useAuth = () => {
-  const config = useRuntimeConfig()
-  const payloadUrl = config.public.payloadUrl || 'http://localhost:3002'
+  // Use relative URLs - Nuxt proxies /api/** to Payload
+  const apiBase = '/api'
 
   const user = ref<User | null>(null)
   const token = useLocalStorage<string | null>('boring-auth-token', null)
@@ -39,7 +39,7 @@ const _useAuth = () => {
     if (!token.value) return null
 
     try {
-      const response = await $fetch<{ user: User }>(`${payloadUrl}/api/users/me`, {
+      const response = await $fetch<{ user: User }>(`${apiBase}/users/me`, {
         headers: {
           Authorization: `JWT ${token.value}`
         }
@@ -60,7 +60,7 @@ const _useAuth = () => {
     error.value = null
 
     try {
-      const response = await $fetch<{ token: string, user: User }>(`${payloadUrl}/api/users/login`, {
+      const response = await $fetch<{ token: string, user: User }>(`${apiBase}/users/login`, {
         method: 'POST',
         body: { email, password }
       })
@@ -88,7 +88,7 @@ const _useAuth = () => {
 
     try {
       // Create user
-      await $fetch<{ doc: User }>(`${payloadUrl}/api/users`, {
+      await $fetch<{ doc: User }>(`${apiBase}/users`, {
         method: 'POST',
         body: data
       })
@@ -109,7 +109,7 @@ const _useAuth = () => {
   const logout = async () => {
     try {
       if (token.value) {
-        await $fetch(`${payloadUrl}/api/users/logout`, {
+        await $fetch(`${apiBase}/users/logout`, {
           method: 'POST',
           headers: {
             Authorization: `JWT ${token.value}`
@@ -132,7 +132,7 @@ const _useAuth = () => {
     error.value = null
 
     try {
-      const response = await $fetch<{ doc: User }>(`${payloadUrl}/api/users/${user.value.id}`, {
+      const response = await $fetch<{ doc: User }>(`${apiBase}/users/${user.value.id}`, {
         method: 'PATCH',
         headers: {
           Authorization: `JWT ${token.value}`
