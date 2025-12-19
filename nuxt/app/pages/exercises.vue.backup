@@ -1,0 +1,548 @@
+<script setup lang="ts">
+const search = ref('')
+const selectedMuscle = ref<string | undefined>(undefined)
+const selectedEquipment = ref<string | undefined>(undefined)
+const selectedJointFriendly = ref<boolean | undefined>(undefined)
+
+const muscleGroups = [
+  { value: 'chest', label: 'Chest', icon: 'i-lucide-square' },
+  { value: 'back', label: 'Back', icon: 'i-lucide-rows-3' },
+  { value: 'shoulders', label: 'Shoulders', icon: 'i-lucide-move-horizontal' },
+  { value: 'biceps', label: 'Biceps', icon: 'i-lucide-circle' },
+  { value: 'triceps', label: 'Triceps', icon: 'i-lucide-triangle' },
+  { value: 'quads', label: 'Quads', icon: 'i-lucide-arrow-up' },
+  { value: 'hamstrings', label: 'Hamstrings', icon: 'i-lucide-arrow-down' },
+  { value: 'glutes', label: 'Glutes', icon: 'i-lucide-circle-dot' },
+  { value: 'calves', label: 'Calves', icon: 'i-lucide-chevrons-down' },
+  { value: 'core', label: 'Core', icon: 'i-lucide-align-center' }
+]
+
+const equipmentOptions = [
+  { value: 'barbell', label: 'Barbell' },
+  { value: 'dumbbell', label: 'Dumbbell' },
+  { value: 'cable', label: 'Cable' },
+  { value: 'machine', label: 'Machine' },
+  { value: 'bodyweight', label: 'Bodyweight' },
+  { value: 'bands', label: 'Bands' }
+]
+
+// Mock exercises
+const allExercises = ref([
+  {
+    id: 1,
+    name: 'Barbell Bench Press',
+    primaryMuscle: 'chest',
+    secondaryMuscles: ['triceps', 'shoulders'],
+    equipment: 'barbell',
+    jointFriendly: false,
+    difficulty: 'intermediate',
+    instructions: 'Lie on bench, grip bar slightly wider than shoulders, lower to chest, press up.',
+    tips: 'Keep feet flat, maintain arch, squeeze shoulder blades together.'
+  },
+  {
+    id: 2,
+    name: 'Pull-ups',
+    primaryMuscle: 'back',
+    secondaryMuscles: ['biceps'],
+    equipment: 'bodyweight',
+    jointFriendly: true,
+    difficulty: 'intermediate',
+    instructions: 'Hang from bar, pull body up until chin clears bar, lower with control.',
+    tips: 'Engage lats, avoid swinging, full range of motion.'
+  },
+  {
+    id: 3,
+    name: 'Barbell Squat',
+    primaryMuscle: 'quads',
+    secondaryMuscles: ['glutes', 'hamstrings', 'core'],
+    equipment: 'barbell',
+    jointFriendly: false,
+    difficulty: 'intermediate',
+    instructions: 'Bar on upper back, feet shoulder width, squat down, drive up through heels.',
+    tips: 'Keep chest up, knees track over toes, hit parallel or below.'
+  },
+  {
+    id: 4,
+    name: 'Romanian Deadlift',
+    primaryMuscle: 'hamstrings',
+    secondaryMuscles: ['glutes', 'back'],
+    equipment: 'barbell',
+    jointFriendly: true,
+    difficulty: 'intermediate',
+    instructions: 'Hold bar at hips, hinge forward keeping legs slightly bent, feel stretch in hamstrings.',
+    tips: 'Keep bar close to body, maintain neutral spine, squeeze glutes at top.'
+  },
+  {
+    id: 5,
+    name: 'Overhead Press',
+    primaryMuscle: 'shoulders',
+    secondaryMuscles: ['triceps', 'core'],
+    equipment: 'barbell',
+    jointFriendly: false,
+    difficulty: 'intermediate',
+    instructions: 'Bar at shoulders, press overhead, lock out arms, lower with control.',
+    tips: 'Brace core, avoid excessive back arch, full lockout.'
+  },
+  {
+    id: 6,
+    name: 'Dumbbell Rows',
+    primaryMuscle: 'back',
+    secondaryMuscles: ['biceps'],
+    equipment: 'dumbbell',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'One hand on bench, row dumbbell to hip, squeeze at top, lower slowly.',
+    tips: 'Keep elbow close to body, initiate with back not biceps.'
+  },
+  {
+    id: 7,
+    name: 'Leg Press',
+    primaryMuscle: 'quads',
+    secondaryMuscles: ['glutes', 'hamstrings'],
+    equipment: 'machine',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Feet shoulder width on platform, lower weight, press through heels.',
+    tips: 'Don\'t lock knees, control the negative, full range of motion.'
+  },
+  {
+    id: 8,
+    name: 'Cable Fly',
+    primaryMuscle: 'chest',
+    secondaryMuscles: ['shoulders'],
+    equipment: 'cable',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Cables at shoulder height, step forward, bring hands together in arc.',
+    tips: 'Maintain slight elbow bend, squeeze at peak contraction.'
+  },
+  {
+    id: 9,
+    name: 'Barbell Curl',
+    primaryMuscle: 'biceps',
+    secondaryMuscles: [],
+    equipment: 'barbell',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Grip bar shoulder width, curl to shoulders, lower with control.',
+    tips: 'Keep elbows stationary, don\'t swing, full contraction at top.'
+  },
+  {
+    id: 10,
+    name: 'Tricep Pushdown',
+    primaryMuscle: 'triceps',
+    secondaryMuscles: [],
+    equipment: 'cable',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Grip rope or bar, push down until arms straight, squeeze triceps.',
+    tips: 'Keep elbows pinned to sides, control the negative.'
+  },
+  {
+    id: 11,
+    name: 'Hip Thrust',
+    primaryMuscle: 'glutes',
+    secondaryMuscles: ['hamstrings'],
+    equipment: 'barbell',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Upper back on bench, bar on hips, drive hips up, squeeze at top.',
+    tips: 'Tuck chin, posterior pelvic tilt at top, pause at peak.'
+  },
+  {
+    id: 12,
+    name: 'Standing Calf Raise',
+    primaryMuscle: 'calves',
+    secondaryMuscles: [],
+    equipment: 'machine',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Stand on platform, raise heels as high as possible, lower with stretch.',
+    tips: 'Full range of motion, pause at top, slow negative.'
+  },
+  {
+    id: 13,
+    name: 'Plank',
+    primaryMuscle: 'core',
+    secondaryMuscles: ['shoulders'],
+    equipment: 'bodyweight',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Forearms on ground, body straight line, hold position.',
+    tips: 'Don\'t let hips sag, squeeze glutes, breathe normally.'
+  },
+  {
+    id: 14,
+    name: 'Lat Pulldown',
+    primaryMuscle: 'back',
+    secondaryMuscles: ['biceps'],
+    equipment: 'cable',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Grip bar wide, pull to upper chest, squeeze lats, release slowly.',
+    tips: 'Lean back slightly, drive elbows down and back.'
+  },
+  {
+    id: 15,
+    name: 'Dumbbell Shoulder Press',
+    primaryMuscle: 'shoulders',
+    secondaryMuscles: ['triceps'],
+    equipment: 'dumbbell',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Dumbbells at shoulders, press overhead, lower with control.',
+    tips: 'Natural arc path, full lockout, control the descent.'
+  },
+  {
+    id: 16,
+    name: 'Leg Curl',
+    primaryMuscle: 'hamstrings',
+    secondaryMuscles: [],
+    equipment: 'machine',
+    jointFriendly: true,
+    difficulty: 'beginner',
+    instructions: 'Lie face down, curl heels toward glutes, squeeze at top.',
+    tips: 'Don\'t lift hips, slow controlled movement, full contraction.'
+  }
+])
+
+const filteredExercises = computed(() => {
+  return allExercises.value.filter(exercise => {
+    // Search filter
+    if (search.value && !exercise.name.toLowerCase().includes(search.value.toLowerCase())) {
+      return false
+    }
+    // Muscle filter
+    if (selectedMuscle.value && exercise.primaryMuscle !== selectedMuscle.value) {
+      return false
+    }
+    // Equipment filter
+    if (selectedEquipment.value && exercise.equipment !== selectedEquipment.value) {
+      return false
+    }
+    // Joint friendly filter
+    if (selectedJointFriendly.value !== undefined && exercise.jointFriendly !== selectedJointFriendly.value) {
+      return false
+    }
+    return true
+  })
+})
+
+const clearFilters = () => {
+  search.value = ''
+  selectedMuscle.value = undefined
+  selectedEquipment.value = undefined
+  selectedJointFriendly.value = undefined
+}
+
+const selectedExercise = ref<typeof allExercises.value[0] | null>(null)
+
+const exerciseModalOpen = computed({
+  get: () => !!selectedExercise.value,
+  set: (value: boolean) => {
+    if (!value) selectedExercise.value = null
+  }
+})
+
+const getMuscleLabel = (value: string) => {
+  return muscleGroups.find(m => m.value === value)?.label || value
+}
+
+const getEquipmentLabel = (value: string) => {
+  return equipmentOptions.find(e => e.value === value)?.label || value
+}
+
+const getDifficultyColor = (difficulty: string) => {
+  switch (difficulty) {
+    case 'beginner': return 'success'
+    case 'intermediate': return 'warning'
+    case 'advanced': return 'error'
+    default: return 'neutral'
+  }
+}
+</script>
+
+<template>
+  <UDashboardPanel grow>
+    <UDashboardNavbar title="Exercises">
+      <template #leading>
+        <UDashboardSidebarButton />
+      </template>
+
+      <template #right>
+        <div class="flex items-center gap-3">
+          <UInput
+            v-model="search"
+            placeholder="Search exercises..."
+            icon="i-lucide-search"
+            class="w-64"
+          />
+          <UColorModeButton />
+        </div>
+      </template>
+    </UDashboardNavbar>
+
+    <UDashboardPanelContent>
+      <div class="space-y-6">
+        <!-- Muscle Group Selector -->
+        <div class="p-4 rounded-xl bg-elevated border border-default">
+          <label class="text-xs text-muted block mb-3">Target Muscle</label>
+          <div class="flex flex-wrap gap-2">
+            <UButton
+              v-for="muscle in muscleGroups"
+              :key="muscle.value"
+              :variant="selectedMuscle === muscle.value ? 'solid' : 'outline'"
+              :color="selectedMuscle === muscle.value ? 'primary' : 'neutral'"
+              size="sm"
+              @click="selectedMuscle = selectedMuscle === muscle.value ? undefined : muscle.value"
+            >
+              {{ muscle.label }}
+            </UButton>
+          </div>
+        </div>
+
+        <!-- Additional Filters -->
+        <div class="flex flex-wrap gap-3 p-4 rounded-xl bg-elevated border border-default">
+          <div>
+            <label class="text-xs text-muted block mb-1">Equipment</label>
+            <USelect
+              v-model="selectedEquipment"
+              :items="equipmentOptions"
+              placeholder="Any"
+              value-key="value"
+              label-key="label"
+              class="w-36"
+            />
+          </div>
+
+          <div>
+            <label class="text-xs text-muted block mb-1">Joint Friendly</label>
+            <UButtonGroup>
+              <UButton
+                :variant="selectedJointFriendly === undefined ? 'solid' : 'outline'"
+                :color="selectedJointFriendly === undefined ? 'primary' : 'neutral'"
+                size="sm"
+                @click="selectedJointFriendly = undefined"
+              >
+                All
+              </UButton>
+              <UButton
+                :variant="selectedJointFriendly === true ? 'solid' : 'outline'"
+                :color="selectedJointFriendly === true ? 'primary' : 'neutral'"
+                size="sm"
+                @click="selectedJointFriendly = true"
+              >
+                Yes
+              </UButton>
+              <UButton
+                :variant="selectedJointFriendly === false ? 'solid' : 'outline'"
+                :color="selectedJointFriendly === false ? 'primary' : 'neutral'"
+                size="sm"
+                @click="selectedJointFriendly = false"
+              >
+                No
+              </UButton>
+            </UButtonGroup>
+          </div>
+
+          <div class="flex items-end ml-auto">
+            <UButton
+              v-if="search || selectedMuscle || selectedEquipment || selectedJointFriendly !== undefined"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              @click="clearFilters"
+            >
+              Clear filters
+            </UButton>
+          </div>
+        </div>
+
+        <!-- Results count -->
+        <div class="text-sm text-muted">
+          {{ filteredExercises.length }} exercises found
+        </div>
+
+        <!-- Exercise list -->
+        <div class="space-y-3">
+          <button
+            v-for="exercise in filteredExercises"
+            :key="exercise.id"
+            type="button"
+            class="w-full p-4 rounded-xl bg-elevated border border-default text-left hover:border-primary transition-colors"
+            @click="selectedExercise = exercise"
+          >
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <h3 class="font-medium">{{ exercise.name }}</h3>
+                <div class="flex items-center gap-2 mt-1">
+                  <UBadge color="primary" variant="subtle" size="xs">
+                    {{ getMuscleLabel(exercise.primaryMuscle) }}
+                  </UBadge>
+                  <UBadge
+                    v-for="muscle in exercise.secondaryMuscles"
+                    :key="muscle"
+                    color="neutral"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ getMuscleLabel(muscle) }}
+                  </UBadge>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <UBadge
+                  v-if="exercise.jointFriendly"
+                  color="success"
+                  variant="subtle"
+                  size="xs"
+                >
+                  <UIcon name="i-lucide-heart" class="w-3 h-3 mr-1" />
+                  Joint Friendly
+                </UBadge>
+                <UBadge
+                  :color="getDifficultyColor(exercise.difficulty)"
+                  variant="subtle"
+                  size="xs"
+                  class="capitalize"
+                >
+                  {{ exercise.difficulty }}
+                </UBadge>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 text-sm text-muted">
+              <div class="flex items-center gap-1">
+                <UIcon name="i-lucide-dumbbell" class="w-4 h-4" />
+                {{ getEquipmentLabel(exercise.equipment) }}
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <!-- Empty state -->
+        <div
+          v-if="filteredExercises.length === 0"
+          class="text-center py-12"
+        >
+          <UIcon name="i-lucide-search-x" class="w-12 h-12 text-muted mx-auto mb-4" />
+          <h3 class="font-medium mb-2">No exercises found</h3>
+          <p class="text-sm text-muted">Try adjusting your filters</p>
+        </div>
+      </div>
+    </UDashboardPanelContent>
+
+    <!-- Exercise Detail Modal -->
+    <UModal v-model:open="exerciseModalOpen" :ui="{ base: 'max-w-2xl' }">
+      <template #content>
+        <UDashboardModal
+          v-if="selectedExercise"
+          :title="selectedExercise.name"
+          @close="selectedExercise = null"
+        >
+          <div class="space-y-6">
+            <!-- Header Info -->
+            <div class="flex items-center gap-3 pb-4 border-b border-default">
+              <div class="p-3 rounded-xl bg-primary/10">
+                <UIcon name="i-lucide-dumbbell" class="w-6 h-6 text-primary" />
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <UBadge
+                    :color="getDifficultyColor(selectedExercise.difficulty)"
+                    variant="subtle"
+                    class="capitalize"
+                  >
+                    {{ selectedExercise.difficulty }}
+                  </UBadge>
+                  <UBadge
+                    v-if="selectedExercise.jointFriendly"
+                    color="success"
+                    variant="subtle"
+                  >
+                    <UIcon name="i-lucide-heart" class="w-3 h-3 mr-1" />
+                    Joint Friendly
+                  </UBadge>
+                </div>
+                <div class="text-sm text-muted">
+                  {{ getEquipmentLabel(selectedExercise.equipment) }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Target Muscles -->
+            <div>
+              <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                <UIcon name="i-lucide-target" class="w-4 h-4 text-primary" />
+                Target Muscles
+              </h4>
+              <div class="p-3 rounded-xl bg-muted/20 space-y-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-muted uppercase tracking-wide">Primary:</span>
+                  <UBadge color="primary" variant="solid" size="sm">
+                    {{ getMuscleLabel(selectedExercise.primaryMuscle) }}
+                  </UBadge>
+                </div>
+                <div v-if="selectedExercise.secondaryMuscles.length > 0" class="flex items-center gap-2">
+                  <span class="text-xs text-muted uppercase tracking-wide">Secondary:</span>
+                  <div class="flex flex-wrap gap-1">
+                    <UBadge
+                      v-for="muscle in selectedExercise.secondaryMuscles"
+                      :key="muscle"
+                      color="neutral"
+                      variant="subtle"
+                      size="sm"
+                    >
+                      {{ getMuscleLabel(muscle) }}
+                    </UBadge>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Instructions -->
+            <div>
+              <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                <UIcon name="i-lucide-list-ordered" class="w-4 h-4 text-primary" />
+                How to Perform
+              </h4>
+              <div class="p-4 rounded-xl bg-muted/20">
+                <p class="text-sm leading-relaxed">{{ selectedExercise.instructions }}</p>
+              </div>
+            </div>
+
+            <!-- Tips -->
+            <div>
+              <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                <UIcon name="i-lucide-lightbulb" class="w-4 h-4 text-primary" />
+                Pro Tips
+              </h4>
+              <div class="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <p class="text-sm leading-relaxed">{{ selectedExercise.tips }}</p>
+              </div>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex gap-3 w-full">
+              <UButton
+                variant="outline"
+                color="neutral"
+                icon="i-lucide-video"
+                class="flex-1"
+              >
+                View Video
+              </UButton>
+              <UButton
+                icon="i-lucide-plus"
+                class="flex-1"
+              >
+                Add to Workout
+              </UButton>
+            </div>
+          </template>
+        </UDashboardModal>
+      </template>
+    </UModal>
+  </UDashboardPanel>
+</template>

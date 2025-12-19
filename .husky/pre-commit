@@ -1,0 +1,29 @@
+#!/bin/sh
+
+echo "🔍 Running pre-commit checks..."
+
+# Run TypeScript checks
+echo "📝 TypeScript check..."
+pnpm typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ TypeScript errors found. Fix them before committing."
+  exit 1
+fi
+
+# Run linting
+echo "🧹 Linting..."
+pnpm lint
+if [ $? -ne 0 ]; then
+  echo "❌ Linting errors found. Fix them before committing."
+  exit 1
+fi
+
+# Run tests
+echo "🧪 Running tests..."
+pnpm test
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed. Fix them before committing."
+  exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"

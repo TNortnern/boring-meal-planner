@@ -1,0 +1,94 @@
+services:
+  # PostgreSQL Database (Local Development)
+  postgres:
+    image: postgres:16-alpine
+    container_name: boring_postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: boring_meal_planner
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - boring_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Payload CMS Backend (Next.js)
+  payload:
+    build:
+      context: ./payload
+      dockerfile: Dockerfile.dev
+    container_name: boring_payload
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '3004:3000'
+    environment:
+      NODE_ENV: development
+      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/boring_meal_planner
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:-dev-secret-change-in-production}
+      PORT: 3000
+      CI: 'true'
+      PAYLOAD_PUBLIC_SERVER_URL: http://localhost:3004
+      # Bunny CDN
+      BUNNY_API_KEY: ${BUNNY_API_KEY:-}
+      BUNNY_STORAGE_ZONE: ${BUNNY_STORAGE_ZONE:-hastest}
+      BUNNY_CDN_URL: ${BUNNY_CDN_URL:-https://hastest.b-cdn.net}
+      BUNNY_STORAGE_HOSTNAME: ${BUNNY_STORAGE_HOSTNAME:-storage.bunnycdn.com}
+      BUNNY_UPLOAD_PATH: ${BUNNY_UPLOAD_PATH:-boring-meals}
+      BUNNY_STORAGE_ENABLED: ${BUNNY_STORAGE_ENABLED:-true}
+    volumes:
+      - ./payload/src:/app/src
+      - ./payload/package.json:/app/package.json
+      - ./payload/tsconfig.json:/app/tsconfig.json
+      - payload_node_modules:/app/node_modules
+    networks:
+      - boring_network
+
+  # Nuxt UI Frontend (with proxy to Payload)
+  nuxt:
+    build:
+      context: ./nuxt
+      dockerfile: Dockerfile.dev
+    container_name: boring_nuxt
+    restart: unless-stopped
+    ports:
+      - '3005:3001'
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      NUXT_PAYLOAD_API_URL: http://payload:3000
+      NUXT_PUBLIC_PAYLOAD_URL: http://localhost:3005
+      PAYLOAD_API_KEY: ${PAYLOAD_API_KEY:-}
+      # Bunny CDN
+      BUNNY_STORAGE_API_KEY: ${BUNNY_STORAGE_API_KEY:-}
+      BUNNY_STORAGE_ZONE: ${BUNNY_STORAGE_ZONE:-hastest}
+      BUNNY_CDN_HOSTNAME: ${BUNNY_CDN_HOSTNAME:-hastest.b-cdn.net}
+      BUNNY_STORAGE_HOSTNAME: ${BUNNY_STORAGE_HOSTNAME:-storage.bunnycdn.com}
+    volumes:
+      - ./nuxt/app:/app/app
+      - ./nuxt/server:/app/server
+      - ./nuxt/public:/app/public
+    depends_on:
+      - payload
+    networks:
+      - boring_network
+
+volumes:
+  postgres_data:
+    driver: local
+  payload_node_modules:
+    driver: local
+
+networks:
+  boring_network:
+    driver: bridge

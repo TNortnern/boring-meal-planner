@@ -1,0 +1,10 @@
+/* Custom styles for BORING Meal Planner admin panel */
+
+:root {
+  --theme-primary: #4f46e5;
+  --theme-success: #10b981;
+  --theme-warning: #f59e0b;
+  --theme-error: #ef4444;
+}
+
+/* Add any custom admin panel styling here */
