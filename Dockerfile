@@ -54,9 +54,9 @@ WORKDIR /app
 COPY --from=payload-builder /app/payload/.next ./payload/.next
 COPY --from=payload-builder /app/payload/public ./payload/public
 COPY --from=payload-builder /app/payload/package.json ./payload/
-# Copy all necessary node_modules for Payload
-COPY --from=deps /app/node_modules ./payload/node_modules
-COPY --from=deps /app/payload/node_modules ./payload/node_modules
+# Copy root node_modules (contains most deps in pnpm workspace)
+COPY --from=deps /app/node_modules ./node_modules
+# Link payload's node_modules to root (symlinks don't work in Docker, so we'll use NODE_PATH)
 
 # Copy Nuxt output
 COPY --from=nuxt-builder /app/nuxt/.output ./nuxt/.output
