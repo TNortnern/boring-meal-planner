@@ -3,10 +3,13 @@ definePageMeta({
   layout: 'onboarding'
 })
 
-const { state, totalSteps, progress, canProceed, nextStep, prevStep } = useOnboarding()
+const { state, totalSteps, progress, canProceed, nextStep, prevStep, getHeightCm, getWeightKg } = useOnboarding()
+const { updateProfile, user } = useAuth()
+const toast = useToast()
 const _router = useRouter()
 
 const stepTitles = [
+  'Welcome! Let\'s start',
   'What\'s your goal?',
   'Tell us about yourself',
   'How active are you?',
@@ -16,7 +19,40 @@ const stepTitles = [
 ]
 
 const handleComplete = async () => {
-  // TODO: Save to backend and redirect to dashboard
+  // Save all onboarding data to user profile
+  if (user.value) {
+    const result = await updateProfile({
+      name: state.value.name,
+      email: state.value.email,
+      age: state.value.age || undefined,
+      sex: state.value.sex,
+      height: getHeightCm(),
+      weight: getWeightKg(),
+      goal: state.value.goal,
+      macroTargets: state.value.macroTargets || undefined,
+      preferences: {
+        boringMode: state.value.boringLevel === 'maximum_boring' || state.value.boringLevel === 'very_boring',
+        mealsPerDay: state.value.mealsPerDay,
+        allergies: state.value.allergies,
+        dietaryPattern: state.value.dietaryPattern
+      }
+    })
+
+    if (result.success) {
+      toast.add({
+        title: 'Profile saved!',
+        description: 'Your personalized plan is ready',
+        color: 'success'
+      })
+    } else {
+      toast.add({
+        title: 'Warning',
+        description: 'Could not save profile, but you can continue',
+        color: 'warning'
+      })
+    }
+  }
+
   await navigateTo('/dashboard')
 }
 </script>
@@ -39,12 +75,13 @@ const handleComplete = async () => {
 
     <!-- Step content -->
     <div class="min-h-[300px]">
-      <OnboardingStepGoal v-if="state.step === 1" />
-      <OnboardingStepStats v-else-if="state.step === 2" />
-      <OnboardingStepActivity v-else-if="state.step === 3" />
-      <OnboardingStepDiet v-else-if="state.step === 4" />
-      <OnboardingStepPreferences v-else-if="state.step === 5" />
-      <OnboardingStepSummary v-else-if="state.step === 6" />
+      <OnboardingStepUserInfo v-if="state.step === 1" />
+      <OnboardingStepGoal v-else-if="state.step === 2" />
+      <OnboardingStepStats v-else-if="state.step === 3" />
+      <OnboardingStepActivity v-else-if="state.step === 4" />
+      <OnboardingStepDiet v-else-if="state.step === 5" />
+      <OnboardingStepPreferences v-else-if="state.step === 6" />
+      <OnboardingStepSummary v-else-if="state.step === 7" />
     </div>
 
     <!-- Navigation -->

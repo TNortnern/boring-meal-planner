@@ -248,6 +248,22 @@ const _useWorkouts = () => {
     Object.assign(exercise, updates)
   }
 
+  // Add new exercise to a workout day
+  const addExercise = (dayIndex: number, exercise: Exercise) => {
+    const day = currentPlan.value.days[dayIndex]
+    if (!day) return
+
+    day.exercises.push(exercise)
+  }
+
+  // Remove exercise from a workout day
+  const removeExercise = (dayIndex: number, exerciseIndex: number) => {
+    const day = currentPlan.value.days[dayIndex]
+    if (!day) return
+
+    day.exercises.splice(exerciseIndex, 1)
+  }
+
   // Create a new workout plan based on split type
   const createWorkoutPlan = (splitType: 'ppl' | 'upper_lower' | 'full_body' | 'bro_split') => {
     const { exercises } = useExerciseData()
@@ -469,6 +485,8 @@ const _useWorkouts = () => {
     cancelWorkout,
     getExerciseProgress,
     updateExerciseTarget,
+    addExercise,
+    removeExercise,
     createWorkoutPlan
   }
 }

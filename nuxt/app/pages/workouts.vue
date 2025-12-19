@@ -11,8 +11,11 @@ const {
   endWorkout,
   cancelWorkout,
   updateExerciseTarget,
+  addExercise,
   createWorkoutPlan
 } = useWorkouts()
+
+const { exercises: exerciseLibrary } = useExerciseData()
 
 const _activeTab = ref('current')
 
@@ -167,6 +170,82 @@ const toggleExerciseExpanded = (exerciseName: string) => {
     expandedExercise.value = null
   } else {
     expandedExercise.value = exerciseName
+  }
+}
+
+// Add exercise modal
+const addExerciseOpen = ref(false)
+const newExerciseData = ref({
+  name: '',
+  sets: 3,
+  reps: '8-10',
+  targetWeight: 0,
+  videoUrl: '',
+  instructions: ''
+})
+
+const openAddExercise = () => {
+  newExerciseData.value = {
+    name: '',
+    sets: 3,
+    reps: '8-10',
+    targetWeight: 0,
+    videoUrl: '',
+    instructions: ''
+  }
+  addExerciseOpen.value = true
+}
+
+const saveNewExercise = () => {
+  if (!newExerciseData.value.name) {
+    toast.add({
+      title: 'Error',
+      description: 'Please select an exercise',
+      color: 'error'
+    })
+    return
+  }
+
+  addExercise(selectedDayIndex.value, {
+    name: newExerciseData.value.name,
+    sets: newExerciseData.value.sets,
+    reps: newExerciseData.value.reps,
+    targetWeight: newExerciseData.value.targetWeight,
+    videoUrl: newExerciseData.value.videoUrl || undefined,
+    instructions: newExerciseData.value.instructions || undefined
+  })
+
+  toast.add({
+    title: 'Exercise Added',
+    description: `${newExerciseData.value.name} added to ${currentDay.value?.name || 'workout'}`,
+    color: 'success'
+  })
+
+  addExerciseOpen.value = false
+}
+
+const exerciseOptions = computed(() => {
+  return exerciseLibrary.map(ex => ({
+    label: ex.name,
+    value: ex.name,
+    description: `${ex.primaryMuscle} • ${ex.equipment}`
+  }))
+})
+
+const selectedExerciseFromLibrary = computed(() => {
+  if (!newExerciseData.value.name) return null
+  return exerciseLibrary.find(ex => ex.name === newExerciseData.value.name)
+})
+
+const autoFillFromLibrary = () => {
+  const exercise = selectedExerciseFromLibrary.value
+  if (exercise) {
+    if (exercise.youtubeId) {
+      newExerciseData.value.videoUrl = `https://youtube.com/watch?v=${exercise.youtubeId}`
+    }
+    if (exercise.instructions) {
+      newExerciseData.value.instructions = exercise.instructions
+    }
   }
 }
 
@@ -332,6 +411,7 @@ const handleCreatePlan = () => {
             color="neutral"
             block
             icon="i-lucide-plus"
+            @click="openAddExercise"
           >
             Add Exercise
           </UButton>
@@ -525,7 +605,7 @@ const handleCreatePlan = () => {
             </div>
           </template>
 
-          <div class="space-y-3">
+          <div class="space-y-3 max-h-[60vh] overflow-y-auto">
             <button
               v-for="split in splitTypes"
               :key="split.value"
@@ -590,7 +670,7 @@ const handleCreatePlan = () => {
             </div>
           </template>
 
-          <div class="space-y-4">
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
             <div class="grid grid-cols-2 gap-4">
               <UFormField label="Sets">
                 <UInput
@@ -641,6 +721,104 @@ const handleCreatePlan = () => {
               </UButton>
               <UButton @click="saveExercise">
                 Save Changes
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Add Exercise Modal -->
+    <UModal v-model:open="addExerciseOpen">
+      <template #content>
+        <UCard class="sm:min-w-[500px]">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold">
+                  Add Exercise
+                </h3>
+                <p class="text-sm text-muted">
+                  Add to {{ currentDay?.name }}
+                </p>
+              </div>
+              <UButton
+                icon="i-lucide-x"
+                variant="ghost"
+                color="neutral"
+                size="sm"
+                @click="addExerciseOpen = false"
+              />
+            </div>
+          </template>
+
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
+            <UFormField label="Exercise">
+              <USelect
+                v-model="newExerciseData.name"
+                :items="exerciseOptions"
+                placeholder="Select an exercise"
+                searchable
+                class="w-full"
+                @update:model-value="autoFillFromLibrary"
+              />
+            </UFormField>
+
+            <div class="grid grid-cols-2 gap-4">
+              <UFormField label="Sets">
+                <UInput
+                  v-model.number="newExerciseData.sets"
+                  type="number"
+                  min="1"
+                  max="10"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UFormField label="Reps">
+                <UInput
+                  v-model="newExerciseData.reps"
+                  placeholder="e.g., 8-10"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+
+            <UFormField label="Target Weight (lbs)">
+              <UInput
+                v-model.number="newExerciseData.targetWeight"
+                type="number"
+                min="0"
+                placeholder="0 for bodyweight"
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField label="Video URL (optional)">
+              <UInput
+                v-model="newExerciseData.videoUrl"
+                placeholder="https://youtube.com/..."
+                class="w-full"
+              />
+            </UFormField>
+
+            <UFormField label="Instructions (optional)">
+              <UTextarea
+                v-model="newExerciseData.instructions"
+                placeholder="Form cues, tips, etc."
+                :rows="3"
+                class="w-full"
+              />
+            </UFormField>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-3">
+              <UButton variant="ghost" color="neutral" @click="addExerciseOpen = false">
+                Cancel
+              </UButton>
+              <UButton @click="saveNewExercise">
+                Add Exercise
               </UButton>
             </div>
           </template>

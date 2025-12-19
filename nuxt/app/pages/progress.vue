@@ -778,7 +778,7 @@ const handlePhotoUpload = async (event: Event) => {
             </div>
           </template>
 
-          <div class="space-y-4">
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
             <UFormField label="Weight (lbs)">
               <UInput
                 v-model.number="newCheckIn.weight"
@@ -884,7 +884,7 @@ const handlePhotoUpload = async (event: Event) => {
             </div>
           </template>
 
-          <div class="space-y-4">
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
             <UFormField label="Weight (lbs)">
               <UInput
                 v-model.number="newWeightEntry.weight"
@@ -941,7 +941,7 @@ const handlePhotoUpload = async (event: Event) => {
             </div>
           </template>
 
-          <div class="space-y-4">
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
             <p class="text-sm">
               Are you sure you want to delete this check-in from
               <span class="font-medium">{{ deletingDate ? format(deletingDate, 'MMMM d, yyyy') : '' }}</span>?

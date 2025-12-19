@@ -36,5 +36,7 @@ useSeoMeta({
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
+
+    <CookieBanner />
   </UApp>
 </template>

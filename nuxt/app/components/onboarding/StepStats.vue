@@ -126,5 +126,29 @@ const sexOptions = [
         </UButtonGroup>
       </div>
     </UFormField>
+
+    <!-- Body Fat Percentage -->
+    <UFormField label="Body fat percentage" hint="Optional - helps improve accuracy">
+      <div class="flex gap-2 items-center">
+        <UInput
+          v-model.number="state.bodyFat"
+          type="number"
+          placeholder="15"
+          :min="5"
+          :max="50"
+          class="max-w-32"
+        />
+        <span class="text-sm text-muted">%</span>
+        <UButton
+          v-if="state.bodyFat !== null"
+          variant="ghost"
+          color="neutral"
+          size="xs"
+          @click="state.bodyFat = null"
+        >
+          I don't know
+        </UButton>
+      </div>
+    </UFormField>
   </div>
 </template>

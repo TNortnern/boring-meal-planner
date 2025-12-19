@@ -1,71 +1,74 @@
 <script setup lang="ts">
 import { format } from 'date-fns'
+import { useMacroCalculator } from '~/composables/useMacroCalculator'
+import { useMealPlanGenerator } from '~/composables/useMealPlanGenerator'
+import type { UserStats } from '~/composables/useMacroCalculator'
 
-// Mock data - will be replaced with real API calls
 const today = new Date()
 const formattedDate = format(today, 'EEEE, MMMM d')
 
-const macroTargets = ref({
-  calories: 2100,
-  protein: 180,
-  carbs: 200,
-  fat: 70
+// Get user stats from onboarding (stored in localStorage)
+const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
+  sex: 'male',
+  age: 30,
+  heightCm: 178,
+  weightKg: 80,
+  liftingDays: 4,
+  dailySteps: 8000,
+  goal: 'maintain',
+  aggression: 'safe'
 })
 
-const macrosConsumed = ref({
-  calories: 1450,
-  protein: 125,
-  carbs: 140,
-  fat: 48
-})
+// Calculate macro targets
+const { calculateMacros } = useMacroCalculator()
+const macroTargets = computed(() => calculateMacros(userStatsStorage.value))
 
-const meals = ref([
-  {
-    id: 1,
-    slot: 'Meal 1',
-    name: 'Chicken & Rice Bowl',
-    time: '8:00 AM',
-    macros: { calories: 550, protein: 45, carbs: 55, fat: 15 },
-    eaten: true,
-    ingredients: [
-      { name: 'Chicken Breast', amount: '6 oz', macros: { protein: 42, carbs: 0, fat: 3 } },
-      { name: 'White Rice', amount: '1 cup cooked', macros: { protein: 3, carbs: 45, fat: 0 } },
-      { name: 'Broccoli', amount: '1 cup', macros: { protein: 0, carbs: 10, fat: 0 } },
-      { name: 'Olive Oil', amount: '1 tsp', macros: { protein: 0, carbs: 0, fat: 12 } }
-    ],
-    instructions: 'Season chicken with salt and pepper. Cook in a pan over medium heat for 6-7 minutes per side. Microwave rice according to package. Steam broccoli for 4 minutes. Combine all in a bowl and drizzle with olive oil.'
-  },
-  {
-    id: 2,
-    slot: 'Meal 2',
-    name: 'Turkey & Potato Plate',
-    time: '12:30 PM',
-    macros: { calories: 600, protein: 50, carbs: 60, fat: 18 },
-    eaten: true,
-    ingredients: [
-      { name: 'Ground Turkey', amount: '6 oz', macros: { protein: 48, carbs: 0, fat: 8 } },
-      { name: 'Sweet Potato', amount: '1 medium', macros: { protein: 2, carbs: 50, fat: 0 } },
-      { name: 'Green Beans', amount: '1 cup', macros: { protein: 0, carbs: 10, fat: 0 } },
-      { name: 'Butter', amount: '1 tbsp', macros: { protein: 0, carbs: 0, fat: 10 } }
-    ],
-    instructions: 'Brown turkey in a skillet, season with garlic powder and onion powder. Microwave sweet potato for 8-10 minutes until soft. Steam green beans. Top potato with butter and serve alongside turkey and beans.'
-  },
-  {
-    id: 3,
-    slot: 'Meal 3',
-    name: 'Lean Beef Stir-Fry',
-    time: '6:30 PM',
-    macros: { calories: 650, protein: 55, carbs: 55, fat: 22 },
-    eaten: false,
-    ingredients: [
-      { name: 'Lean Ground Beef', amount: '6 oz', macros: { protein: 50, carbs: 0, fat: 15 } },
-      { name: 'Jasmine Rice', amount: '1 cup cooked', macros: { protein: 4, carbs: 45, fat: 0 } },
-      { name: 'Mixed Vegetables', amount: '1.5 cups', macros: { protein: 1, carbs: 10, fat: 0 } },
-      { name: 'Sesame Oil', amount: '1 tsp', macros: { protein: 0, carbs: 0, fat: 7 } }
-    ],
-    instructions: 'Cook beef in a wok or large pan until browned. Add frozen mixed vegetables and stir-fry for 5-7 minutes. Add cooked rice and sesame oil, stir to combine. Season with soy sauce to taste.'
-  }
-])
+// Generate meal plan based on macro targets
+const { generateMealPlan } = useMealPlanGenerator()
+const generatedPlan = generateMealPlan(macroTargets.value)
+
+// Get eaten status from localStorage
+const eatenMealsKey = `eaten-meals-${format(today, 'yyyy-MM-dd')}`
+const eatenMeals = useLocalStorage<number[]>(eatenMealsKey, [])
+
+// Convert generated meals to dashboard format
+const times = ['8:00 AM', '12:30 PM', '6:30 PM']
+const meals = ref(
+  generatedPlan.dayA.map((meal, index) => {
+    const mealCarbs = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0
+    const mealFat = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0
+
+    return {
+      id: index + 1,
+      slot: meal.slot,
+      name: meal.recipe,
+      time: times[index] || '12:00 PM',
+      macros: {
+        calories: meal.macros.calories,
+        protein: meal.macros.protein,
+        carbs: mealCarbs,
+        fat: mealFat
+      },
+      eaten: eatenMeals.value.includes(index + 1),
+      ingredients: meal.ingredients || [],
+      instructions: meal.instructions
+    }
+  })
+)
+
+const macrosConsumed = ref(
+  meals.value
+    .filter(m => m.eaten)
+    .reduce(
+      (acc, m) => ({
+        calories: acc.calories + m.macros.calories,
+        protein: acc.protein + m.macros.protein,
+        carbs: acc.carbs + m.macros.carbs,
+        fat: acc.fat + m.macros.fat
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    )
+)
 
 const expandedMealId = ref<number | null>(null)
 
@@ -98,6 +101,19 @@ const toggleMealEaten = (mealId: number) => {
   const meal = meals.value.find(m => m.id === mealId)
   if (meal) {
     meal.eaten = !meal.eaten
+
+    // Update localStorage
+    if (meal.eaten) {
+      if (!eatenMeals.value.includes(mealId)) {
+        eatenMeals.value.push(mealId)
+      }
+    } else {
+      const index = eatenMeals.value.indexOf(mealId)
+      if (index > -1) {
+        eatenMeals.value.splice(index, 1)
+      }
+    }
+
     // Recalculate consumed macros
     const consumed = meals.value
       .filter(m => m.eaten)
@@ -293,7 +309,7 @@ const toggleMealEaten = (mealId: number) => {
                       </div>
                       <div class="flex items-center gap-3">
                         <span class="text-sm text-muted">{{ ingredient.amount }}</span>
-                        <div class="flex items-center gap-2 text-xs">
+                        <div v-if="ingredient.macros" class="flex items-center gap-2 text-xs">
                           <span class="text-blue-500">{{ ingredient.macros.protein }}p</span>
                           <span class="text-amber-500">{{ ingredient.macros.carbs }}c</span>
                           <span class="text-rose-500">{{ ingredient.macros.fat }}f</span>

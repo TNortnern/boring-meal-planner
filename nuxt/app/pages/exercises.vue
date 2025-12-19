@@ -448,7 +448,7 @@ const getRepBenchmarks = (exercise: Exercise): Record<BenchmarkLevel, BenchmarkD
             </div>
           </template>
 
-          <div class="space-y-4">
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
             <!-- Effectiveness Rating -->
             <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
               <div class="flex items-center justify-between">
@@ -607,7 +607,7 @@ const getRepBenchmarks = (exercise: Exercise): Record<BenchmarkLevel, BenchmarkD
             </div>
           </template>
 
-          <div class="aspect-video w-full">
+          <div class="aspect-video w-full max-h-[60vh] overflow-y-auto">
             <iframe
               v-if="videoUrl"
               :src="videoUrl"
@@ -660,7 +660,7 @@ const getRepBenchmarks = (exercise: Exercise): Record<BenchmarkLevel, BenchmarkD
             </div>
           </template>
 
-          <div class="space-y-3">
+          <div class="space-y-3 max-h-[60vh] overflow-y-auto">
             <button
               v-for="(day, index) in currentPlan.days"
               :key="index"

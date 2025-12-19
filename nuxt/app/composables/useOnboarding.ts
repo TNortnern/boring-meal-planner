@@ -2,27 +2,32 @@ import type { UserStats, MacroTargets } from './useMacroCalculator'
 
 export interface OnboardingState {
   step: number
-  // Step 1: Goal
+  // Step 1: User info
+  name: string
+  email: string
+
+  // Step 2: Goal
   goal: 'cut' | 'maintain' | 'gain'
   aggression: 'safe' | 'aggressive'
   deadlineDate: string | null
 
-  // Step 2: Body stats
+  // Step 3: Body stats
   sex: 'male' | 'female' | 'unspecified'
   age: number | null
   height: { value: number | null, unit: 'cm' | 'in' | 'ft', feet?: number | null, inches?: number | null }
   weight: { value: number | null, unit: 'kg' | 'lbs' }
+  bodyFat: number | null
 
-  // Step 3: Activity
+  // Step 4: Activity
   liftingDays: number
   dailySteps: number
 
-  // Step 4: Dietary restrictions
+  // Step 5: Dietary restrictions
   allergies: string[]
   dietaryPattern: 'none' | 'halal' | 'kosher' | 'vegetarian' | 'pescatarian' | 'vegan'
   excludedFoods: string[]
 
-  // Step 5: Preferences
+  // Step 6: Preferences
   cookEverything: boolean
   repeatMeals: boolean
   mealsPerDay: number
@@ -36,6 +41,8 @@ export interface OnboardingState {
 
 const defaultState: OnboardingState = {
   step: 1,
+  name: '',
+  email: '',
   goal: 'maintain',
   aggression: 'safe',
   deadlineDate: null,
@@ -43,6 +50,7 @@ const defaultState: OnboardingState = {
   age: null,
   height: { value: null, unit: 'cm' },
   weight: { value: null, unit: 'kg' },
+  bodyFat: null,
   liftingDays: 4,
   dailySteps: 8000,
   allergies: [],
@@ -61,27 +69,29 @@ export function useOnboarding() {
   const state = useState<OnboardingState>('onboarding', () => ({ ...defaultState }))
   const { calculateMacros } = useMacroCalculator()
 
-  const totalSteps = 6 // Goal, Stats, Activity, Diet, Preferences, Summary
+  const totalSteps = 7 // User info, Goal, Stats, Activity, Diet, Preferences, Summary
 
   const progress = computed(() => (state.value.step / totalSteps) * 100)
 
   const canProceed = computed(() => {
     switch (state.value.step) {
-      case 1: // Goal
+      case 1: // User info
+        return !!state.value.name && !!state.value.email
+      case 2: // Goal
         return !!state.value.goal
-      case 2: { // Stats
+      case 3: { // Stats
         const hasHeight = state.value.height.unit === 'ft'
           ? (state.value.height.feet && state.value.height.inches !== null)
           : !!state.value.height.value
         return hasHeight && state.value.weight.value
       }
-      case 3: // Activity
+      case 4: // Activity
         return state.value.liftingDays >= 0 && state.value.dailySteps >= 0
-      case 4: // Diet
+      case 5: // Diet
         return true // All optional
-      case 5: // Preferences
+      case 6: // Preferences
         return state.value.mealsPerDay >= 2
-      case 6: // Summary
+      case 7: // Summary
         return !!state.value.macroTargets
       default:
         return false
@@ -93,7 +103,7 @@ export function useOnboarding() {
       state.value.step++
 
       // Calculate macros when reaching summary
-      if (state.value.step === 6) {
+      if (state.value.step === 7) {
         calculateFinalMacros()
       }
     }

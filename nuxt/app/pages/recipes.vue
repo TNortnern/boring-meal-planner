@@ -496,7 +496,7 @@ const confirmAddToMealPlan = () => {
             </div>
           </template>
 
-          <div class="space-y-4">
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
             <!-- Selected Recipe Preview -->
             <div v-if="selectedRecipe" class="p-3 rounded-lg bg-muted/20">
               <div class="font-medium">

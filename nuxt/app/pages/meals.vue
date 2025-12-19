@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { format, addDays, startOfWeek } from 'date-fns'
+import { useMacroCalculator } from '~/composables/useMacroCalculator'
+import { useMealPlanGenerator } from '~/composables/useMealPlanGenerator'
+import type { UserStats } from '~/composables/useMacroCalculator'
 
 const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
 
@@ -19,85 +22,31 @@ const days = computed(() => {
   })
 })
 
-// Mock meal plan data
-const mealPlan = ref({
-  dayA: [
-    {
-      slot: 'Meal 1',
-      recipe: 'Chicken & Rice Bowl',
-      macros: { calories: 550, protein: 45 },
-      ingredients: [
-        { name: 'Chicken Breast', amount: '6 oz', macros: { protein: 42, carbs: 0, fat: 3 } },
-        { name: 'White Rice', amount: '1 cup cooked', macros: { protein: 3, carbs: 45, fat: 0 } },
-        { name: 'Broccoli', amount: '1 cup', macros: { protein: 0, carbs: 10, fat: 0 } },
-        { name: 'Olive Oil', amount: '1 tsp', macros: { protein: 0, carbs: 0, fat: 12 } }
-      ],
-      instructions: 'Season chicken with salt and pepper. Cook in a pan over medium heat for 6-7 minutes per side. Microwave rice according to package. Steam broccoli for 4 minutes. Combine all in a bowl and drizzle with olive oil.'
-    },
-    {
-      slot: 'Meal 2',
-      recipe: 'Turkey & Potato Plate',
-      macros: { calories: 600, protein: 50 },
-      ingredients: [
-        { name: 'Ground Turkey', amount: '6 oz', macros: { protein: 48, carbs: 0, fat: 8 } },
-        { name: 'Sweet Potato', amount: '1 medium', macros: { protein: 2, carbs: 50, fat: 0 } },
-        { name: 'Green Beans', amount: '1 cup', macros: { protein: 0, carbs: 10, fat: 0 } },
-        { name: 'Butter', amount: '1 tbsp', macros: { protein: 0, carbs: 0, fat: 10 } }
-      ],
-      instructions: 'Brown turkey in a skillet, season with garlic powder and onion powder. Microwave sweet potato for 8-10 minutes until soft. Steam green beans. Top potato with butter and serve alongside turkey and beans.'
-    },
-    {
-      slot: 'Meal 3',
-      recipe: 'Lean Beef Stir-Fry',
-      macros: { calories: 650, protein: 55 },
-      ingredients: [
-        { name: 'Lean Ground Beef', amount: '6 oz', macros: { protein: 50, carbs: 0, fat: 15 } },
-        { name: 'Jasmine Rice', amount: '1 cup cooked', macros: { protein: 4, carbs: 45, fat: 0 } },
-        { name: 'Mixed Vegetables', amount: '1.5 cups', macros: { protein: 1, carbs: 10, fat: 0 } },
-        { name: 'Sesame Oil', amount: '1 tsp', macros: { protein: 0, carbs: 0, fat: 7 } }
-      ],
-      instructions: 'Cook beef in a wok or large pan until browned. Add frozen mixed vegetables and stir-fry for 5-7 minutes. Add cooked rice and sesame oil, stir to combine. Season with soy sauce to taste.'
-    }
-  ],
-  dayB: [
-    {
-      slot: 'Meal 1',
-      recipe: 'Egg White Omelette',
-      macros: { calories: 500, protein: 42 },
-      ingredients: [
-        { name: 'Egg Whites', amount: '8 whites', macros: { protein: 28, carbs: 2, fat: 0 } },
-        { name: 'Whole Eggs', amount: '2 eggs', macros: { protein: 12, carbs: 0, fat: 10 } },
-        { name: 'Oats', amount: '1/2 cup dry', macros: { protein: 5, carbs: 27, fat: 3 } },
-        { name: 'Berries', amount: '1/2 cup', macros: { protein: 0, carbs: 15, fat: 0 } }
-      ],
-      instructions: 'Whisk eggs and egg whites together. Cook in a non-stick pan until set. Cook oats with water in microwave for 2-3 minutes. Top oats with berries.'
-    },
-    {
-      slot: 'Meal 2',
-      recipe: 'Tuna Rice Bowl',
-      macros: { calories: 580, protein: 48 },
-      ingredients: [
-        { name: 'Canned Tuna', amount: '1 can (5oz)', macros: { protein: 42, carbs: 0, fat: 1 } },
-        { name: 'Brown Rice', amount: '1 cup cooked', macros: { protein: 5, carbs: 45, fat: 2 } },
-        { name: 'Avocado', amount: '1/4 medium', macros: { protein: 1, carbs: 4, fat: 7 } },
-        { name: 'Cucumber', amount: '1/2 cup', macros: { protein: 0, carbs: 4, fat: 0 } }
-      ],
-      instructions: 'Drain tuna and mix with a little mayo or Greek yogurt. Microwave rice. Assemble bowl with rice, tuna, sliced avocado, and cucumber. Season with soy sauce.'
-    },
-    {
-      slot: 'Meal 3',
-      recipe: 'Chicken Stir-Fry',
-      macros: { calories: 620, protein: 52 },
-      ingredients: [
-        { name: 'Chicken Thighs', amount: '6 oz', macros: { protein: 46, carbs: 0, fat: 12 } },
-        { name: 'White Rice', amount: '1 cup cooked', macros: { protein: 3, carbs: 45, fat: 0 } },
-        { name: 'Bell Peppers', amount: '1 cup', macros: { protein: 1, carbs: 9, fat: 0 } },
-        { name: 'Cooking Oil', amount: '1 tbsp', macros: { protein: 0, carbs: 0, fat: 14 } }
-      ],
-      instructions: 'Cut chicken into bite-sized pieces. Heat oil in wok, cook chicken until done. Add sliced peppers and stir-fry for 3-4 minutes. Serve over rice with teriyaki sauce.'
-    }
-  ]
+// Get user stats from onboarding (stored in localStorage)
+const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
+  sex: 'male',
+  age: 30,
+  heightCm: 178,
+  weightKg: 80,
+  liftingDays: 4,
+  dailySteps: 8000,
+  goal: 'maintain',
+  aggression: 'safe'
 })
+
+// Calculate macro targets
+const { calculateMacros } = useMacroCalculator()
+const macroTargets = computed(() => calculateMacros(userStatsStorage.value))
+
+// Generate meal plan based on macro targets
+const { generateMealPlan } = useMealPlanGenerator()
+const mealPlan = ref(generateMealPlan(macroTargets.value))
+
+// Regenerate meal plan when user stats change
+watch(userStatsStorage, (newStats) => {
+  const newTargets = calculateMacros(newStats)
+  mealPlan.value = generateMealPlan(newTargets)
+}, { deep: true })
 
 const expandedMealSlot = ref<string | null>(null)
 
@@ -116,7 +65,15 @@ const totalDailyMacros = computed(() => {
   const meals = mealPlan.value.dayA
   return {
     calories: meals.reduce((sum, m) => sum + m.macros.calories, 0),
-    protein: meals.reduce((sum, m) => sum + m.macros.protein, 0)
+    protein: meals.reduce((sum, m) => sum + m.macros.protein, 0),
+    carbs: meals.reduce((sum, m) => {
+      const ingredientCarbs = m.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0
+      return sum + ingredientCarbs
+    }, 0),
+    fat: meals.reduce((sum, m) => {
+      const ingredientFat = m.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0
+      return sum + ingredientFat
+    }, 0)
   }
 })
 
@@ -273,8 +230,14 @@ const copyShoppingList = async () => {
                 — Day {{ currentDay.rotation }}
               </span>
             </h2>
-            <div class="text-sm text-muted">
-              {{ totalDailyMacros.calories }} kcal · {{ totalDailyMacros.protein }}g protein
+            <div class="text-sm">
+              <span class="font-medium">{{ totalDailyMacros.calories }} kcal</span>
+              <span class="text-muted mx-1">·</span>
+              <span class="text-blue-500">{{ totalDailyMacros.protein }}p</span>
+              <span class="text-muted mx-1">·</span>
+              <span class="text-amber-500">{{ totalDailyMacros.carbs }}c</span>
+              <span class="text-muted mx-1">·</span>
+              <span class="text-rose-500">{{ totalDailyMacros.fat }}f</span>
             </div>
           </div>
 
@@ -302,8 +265,10 @@ const copyShoppingList = async () => {
                   <div class="font-medium">
                     {{ meal.macros.calories }} kcal
                   </div>
-                  <div class="text-muted">
-                    {{ meal.macros.protein }}g protein
+                  <div class="flex items-center gap-1.5 text-xs">
+                    <span class="text-blue-500">{{ meal.macros.protein }}p</span>
+                    <span class="text-amber-500">{{ meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0 }}c</span>
+                    <span class="text-rose-500">{{ meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0 }}f</span>
                   </div>
                 </div>
                 <UIcon
@@ -334,7 +299,7 @@ const copyShoppingList = async () => {
                       </div>
                       <div class="flex items-center gap-3">
                         <span class="text-sm text-muted">{{ ingredient.amount }}</span>
-                        <div class="flex items-center gap-2 text-xs">
+                        <div v-if="ingredient.macros" class="flex items-center gap-2 text-xs">
                           <span class="text-blue-500">{{ ingredient.macros.protein }}p</span>
                           <span class="text-amber-500">{{ ingredient.macros.carbs }}c</span>
                           <span class="text-rose-500">{{ ingredient.macros.fat }}f</span>
