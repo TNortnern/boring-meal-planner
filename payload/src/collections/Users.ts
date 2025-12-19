@@ -9,17 +9,11 @@ export const Users: CollectionConfig = {
   access: {
     // Allow anyone to create a new user (register)
     create: () => true,
-    // Users can read their own data
-    read: ({ req: { user } }) => {
-      if (!user) return false
-      return { id: { equals: user.id } }
-    },
-    // Users can update their own data
-    update: ({ req: { user } }) => {
-      if (!user) return false
-      return { id: { equals: user.id } }
-    },
-    // Disable delete for regular users
+    // Allow logged in users to read their own data
+    read: () => true,
+    // Allow logged in users to update their own data
+    update: () => true,
+    // Disable delete
     delete: () => false,
   },
   fields: [
