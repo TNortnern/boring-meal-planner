@@ -74,7 +74,16 @@ export const MealPlans: CollectionConfig = {
               name: 'recipe',
               type: 'relationship',
               relationTo: 'recipes',
-              required: true
+              admin: {
+                description: 'Link to database recipe (if available)'
+              }
+            },
+            {
+              name: 'recipeData',
+              type: 'json',
+              admin: {
+                description: 'Inline recipe data for static recipes (id, name, macros, etc.)'
+              }
             },
             {
               name: 'portionMultiplier',
@@ -115,8 +124,11 @@ export const MealPlans: CollectionConfig = {
             {
               name: 'recipe',
               type: 'relationship',
-              relationTo: 'recipes',
-              required: true
+              relationTo: 'recipes'
+            },
+            {
+              name: 'recipeData',
+              type: 'json'
             },
             {
               name: 'portionMultiplier',
@@ -168,8 +180,11 @@ export const MealPlans: CollectionConfig = {
             {
               name: 'recipe',
               type: 'relationship',
-              relationTo: 'recipes',
-              required: true
+              relationTo: 'recipes'
+            },
+            {
+              name: 'recipeData',
+              type: 'json'
             },
             {
               name: 'portionMultiplier',

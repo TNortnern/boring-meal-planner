@@ -1,8 +1,19 @@
 <script setup lang="ts">
 import { boringRecipes, getDifficulty, type Recipe } from '~/data/recipes'
+import type { RecipeData } from '~/composables/useMealPlans'
 
-const { mealPlan, dayNames, addRecipeToMealPlan } = useMealPlan()
+const mealPlansApi = useMealPlans()
+const { isAuthenticated } = useAuth()
 const toast = useToast()
+
+// Fetch active plan on mount
+onMounted(async () => {
+  if (isAuthenticated.value) {
+    await mealPlansApi.fetchActivePlan()
+  }
+})
+
+const dayNames = ['Day A', 'Day B']
 
 const search = ref('')
 const selectedGoal = ref<string | undefined>(undefined)
@@ -120,9 +131,66 @@ const openAddToMealPlan = () => {
   addToMealPlanOpen.value = true
 }
 
-const confirmAddToMealPlan = () => {
-  if (selectedRecipe.value) {
-    addRecipeToMealPlan(selectedRecipe.value, selectedDay.value, selectedSlot.value)
+// Get existing meal name at a slot for display
+const getExistingMealName = (dayIndex: number, slotIndex: number): string | null => {
+  const day = dayIndex === 0 ? 'dayA' : 'dayB'
+  const meals = mealPlansApi.activePlan.value?.[day]?.meals || []
+  const meal = meals[slotIndex]
+  if (!meal) return null
+  // Check for inline recipe data first, then relationship
+  if (meal.recipeData?.name) return meal.recipeData.name
+  if (typeof meal.recipe === 'object' && meal.recipe?.name) return meal.recipe.name
+  return null
+}
+
+const confirmAddToMealPlan = async () => {
+  if (!selectedRecipe.value) return
+
+  if (!isAuthenticated.value) {
+    toast.add({
+      title: 'Login Required',
+      description: 'Please log in to save meals to your plan.',
+      color: 'warning'
+    })
+    return
+  }
+
+  // Create a default plan if none exists
+  if (!mealPlansApi.activePlan.value) {
+    const createResult = await mealPlansApi.createDefaultPlan()
+    if (!createResult.success) {
+      toast.add({
+        title: 'Error',
+        description: createResult.error || 'Failed to create meal plan',
+        color: 'error'
+      })
+      return
+    }
+  }
+
+  // Convert Recipe to RecipeData
+  const recipeData: RecipeData = {
+    id: selectedRecipe.value.id,
+    name: selectedRecipe.value.name,
+    description: selectedRecipe.value.description,
+    prepTime: selectedRecipe.value.prepTime,
+    macros: {
+      calories: selectedRecipe.value.macros.calories,
+      protein: selectedRecipe.value.macros.protein,
+      carbs: selectedRecipe.value.macros.carbs,
+      fat: selectedRecipe.value.macros.fat
+    },
+    ingredientsList: selectedRecipe.value.ingredientsList,
+    instructions: selectedRecipe.value.instructions,
+    source: selectedRecipe.value.source,
+    tags: selectedRecipe.value.tags
+  }
+
+  // Add to meal plan via API
+  const day = selectedDay.value === 0 ? 'dayA' : 'dayB'
+  const result = await mealPlansApi.addMealWithRecipeData(day, selectedSlot.value, recipeData)
+
+  if (result.success) {
     toast.add({
       title: 'Added to Meal Plan',
       description: `${selectedRecipe.value.name} added to ${dayNames[selectedDay.value]} - Meal ${selectedSlot.value + 1}`,
@@ -130,6 +198,12 @@ const confirmAddToMealPlan = () => {
     })
     addToMealPlanOpen.value = false
     selectedRecipe.value = null
+  } else {
+    toast.add({
+      title: 'Error',
+      description: result.error || 'Failed to add meal',
+      color: 'error'
+    })
   }
 }
 </script>
@@ -533,8 +607,8 @@ const confirmAddToMealPlan = () => {
                 >
                   <div class="flex items-center justify-between">
                     <span class="font-medium">{{ meal }}</span>
-                    <span v-if="mealPlan[selectedDay]?.meals[index]?.recipe" class="text-xs text-muted">
-                      Replaces: {{ mealPlan[selectedDay]?.meals[index]?.recipe?.name }}
+                    <span v-if="getExistingMealName(selectedDay, index)" class="text-xs text-muted">
+                      Replaces: {{ getExistingMealName(selectedDay, index) }}
                     </span>
                     <span v-else class="text-xs text-muted">Empty</span>
                   </div>

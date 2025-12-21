@@ -106,24 +106,45 @@ const getFormattedMealsForDay = (dayIndex: number): DisplayMeal[] => {
 
   if (isApiPlan) {
     return (meals as MealSlot[]).map((meal, index) => {
-      const recipe = typeof meal.recipe === 'object' ? meal.recipe : null
+      // Check for inline recipeData first, then relationship
+      const recipeData = meal.recipeData
+      const recipeRelation = typeof meal.recipe === 'object' ? meal.recipe : null
       const slotKey = meal.slot
       const todayLog = progressLogs.getTodayLog.value
       const mealEaten = todayLog?.mealsEaten?.find(m => m.slot === slotKey)
 
+      // Use recipeData if available, otherwise fall back to relationship
+      if (recipeData) {
+        return {
+          slot: slotKey.replace('meal_', 'Meal '),
+          slotKey,
+          recipe: recipeData.name,
+          macros: {
+            calories: recipeData.macros?.calories || 0,
+            protein: recipeData.macros?.protein || 0,
+            carbs: recipeData.macros?.carbs || 0,
+            fat: recipeData.macros?.fat || 0
+          },
+          ingredients: recipeData.ingredientsList || [],
+          instructions: recipeData.instructions?.join('\n') || '',
+          recipeId: undefined,
+          eaten: mealEaten?.eaten || false
+        }
+      }
+
       return {
         slot: slotKey.replace('meal_', 'Meal '),
         slotKey,
-        recipe: recipe?.name || `Meal ${index + 1}`,
+        recipe: recipeRelation?.name || `Meal ${index + 1}`,
         macros: {
-          calories: recipe?.macros?.calories || 0,
-          protein: recipe?.macros?.protein || 0,
+          calories: recipeRelation?.macros?.calories || 0,
+          protein: recipeRelation?.macros?.protein || 0,
           carbs: 0,
           fat: 0
         },
         ingredients: [],
         instructions: '',
-        recipeId: typeof meal.recipe === 'number' ? meal.recipe : recipe?.id,
+        recipeId: typeof meal.recipe === 'number' ? meal.recipe : recipeRelation?.id,
         eaten: mealEaten?.eaten || false
       }
     })

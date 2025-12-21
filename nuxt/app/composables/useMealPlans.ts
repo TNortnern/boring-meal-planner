@@ -1,10 +1,32 @@
 import { createSharedComposable } from '@vueuse/core'
 import { apiGet, apiPost, apiPatch, formatDateForPayload, type PayloadListResponse, type PayloadDocResponse } from '~/utils/api'
 
+export interface RecipeData {
+  id: string | number
+  name: string
+  description?: string
+  prepTime?: number
+  macros: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
+  ingredientsList?: Array<{
+    name: string
+    amount: string
+    macros?: { protein: number, carbs: number, fat: number }
+  }>
+  instructions?: string[]
+  source?: string
+  tags?: string[]
+}
+
 export interface MealSlot {
   id?: string
   slot: 'meal_1' | 'meal_2' | 'meal_3' | 'meal_4' | 'meal_5'
-  recipe: number | string | { id: number, name: string, macros?: { calories: number, protein: number } }
+  recipe?: number | string | { id: number, name: string, macros?: { calories: number, protein: number } }
+  recipeData?: RecipeData
   portionMultiplier?: number
 }
 
@@ -215,6 +237,61 @@ const _useMealPlans = () => {
     })
   }
 
+  // Add a meal with inline recipe data (for static recipes not in DB)
+  const addMealWithRecipeData = async (day: 'dayA' | 'dayB', slotIndex: number, recipeData: RecipeData) => {
+    if (!activePlan.value) return { success: false, error: 'No active meal plan' }
+    if (slotIndex < 0 || slotIndex > 4) return { success: false, error: 'Invalid slot index' }
+
+    const slots = ['meal_1', 'meal_2', 'meal_3', 'meal_4', 'meal_5'] as const
+    const dayMeals = activePlan.value[day]?.meals || []
+    const updatedMeals = [...dayMeals]
+
+    // Ensure we have slots up to slotIndex
+    while (updatedMeals.length <= slotIndex) {
+      const idx = updatedMeals.length
+      updatedMeals.push({
+        slot: slots[idx] as typeof slots[number],
+        recipeData: undefined,
+        portionMultiplier: 1
+      })
+    }
+
+    updatedMeals[slotIndex] = {
+      slot: slots[slotIndex] as typeof slots[number],
+      recipeData,
+      portionMultiplier: 1
+    }
+
+    return updatePlan(activePlan.value.id, {
+      [day]: { meals: updatedMeals }
+    })
+  }
+
+  // Create a default meal plan for the current week
+  const createDefaultPlan = async () => {
+    if (!user.value) return { success: false, error: 'Not authenticated' }
+
+    const today = new Date()
+    // Get Monday of current week
+    const dayOfWeek = today.getDay()
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(today)
+    monday.setDate(today.getDate() + mondayOffset)
+
+    return createPlan({
+      name: `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      weekStartDate: monday,
+      rotationType: 'same_daily',
+      macroTargets: {
+        calories: 2000,
+        protein: 150,
+        carbs: 200,
+        fat: 70
+      },
+      dayA: { meals: [] }
+    })
+  }
+
   // Get today's meals based on rotation type
   const getTodaysMeals = computed(() => {
     if (!activePlan.value) return []
@@ -268,8 +345,10 @@ const _useMealPlans = () => {
     fetchActivePlan,
     fetchAllPlans,
     createPlan,
+    createDefaultPlan,
     updatePlan,
     swapMeal,
+    addMealWithRecipeData,
     updatePortion,
     init
   }
