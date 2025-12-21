@@ -3,12 +3,8 @@ set -e
 
 echo "🚀 Starting BORING Meal Planner..."
 
-# Run Payload migrations before starting
-echo "🔄 Running database migrations..."
-cd /app/payload
-NODE_OPTIONS="--no-deprecation" npx payload migrate || echo "⚠️ Migration warning (may already be applied)"
-
 # Start Payload CMS in background on port 3002
+# Note: Migrations are applied via push:true in payload.config.ts
 echo "📦 Starting Payload CMS on port 3002..."
 PORT=3002 HOSTNAME=0.0.0.0 NODE_OPTIONS="--no-deprecation" npx next start &
 PAYLOAD_PID=$!
