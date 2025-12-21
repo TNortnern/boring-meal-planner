@@ -114,18 +114,12 @@ export const Users: CollectionConfig = {
       type: 'group',
       fields: [
         {
+          // Changed from hasMany select to text to avoid junction table
           name: 'allergies',
-          type: 'select',
-          hasMany: true,
-          options: [
-            { label: 'Nuts', value: 'nuts' },
-            { label: 'Dairy', value: 'dairy' },
-            { label: 'Gluten', value: 'gluten' },
-            { label: 'Eggs', value: 'eggs' },
-            { label: 'Fish', value: 'fish' },
-            { label: 'Shellfish', value: 'shellfish' },
-            { label: 'Soy', value: 'soy' }
-          ]
+          type: 'text',
+          admin: {
+            description: 'Comma-separated list of allergies (nuts, dairy, gluten, eggs, fish, shellfish, soy)'
+          }
         },
         {
           name: 'dietaryPattern',
@@ -140,11 +134,12 @@ export const Users: CollectionConfig = {
           ]
         },
         {
+          // Changed from array to text to avoid junction table
           name: 'excludedFoods',
-          type: 'array',
-          fields: [
-            { name: 'food', type: 'text' }
-          ]
+          type: 'text',
+          admin: {
+            description: 'Comma-separated list of excluded foods'
+          }
         }
       ]
     },
