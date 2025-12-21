@@ -285,27 +285,38 @@ const _useMealPlans = () => {
       portionMultiplier: 1
     }
 
+    // Helper to update meals array preserving all existing meals
+    const updateMealsArray = (existingMeals: MealSlot[] | undefined): MealSlot[] => {
+      // Deep copy existing meals to preserve all data
+      const meals: MealSlot[] = (existingMeals || []).map(m => ({
+        ...m,
+        slot: m.slot,
+        recipeData: m.recipeData ? { ...m.recipeData } : undefined,
+        recipe: m.recipe,
+        portionMultiplier: m.portionMultiplier ?? 1
+      }))
+
+      // Ensure we have enough slots
+      while (meals.length <= slotIndex) {
+        const idx = meals.length
+        meals.push({ slot: slots[idx] as typeof slots[number], portionMultiplier: 1 })
+      }
+
+      // Only replace the target slot
+      meals[slotIndex] = newMeal
+
+      return meals
+    }
+
     // Update both Day A and Day B if scope is all weeks
     const updateData: Partial<MealPlan> = {}
 
     // Update Day A
-    const dayAMeals = [...(activePlan.value.dayA?.meals || [])]
-    while (dayAMeals.length <= slotIndex) {
-      const idx = dayAMeals.length
-      dayAMeals.push({ slot: slots[idx] as typeof slots[number], portionMultiplier: 1 })
-    }
-    dayAMeals[slotIndex] = newMeal
-    updateData.dayA = { meals: dayAMeals }
+    updateData.dayA = { meals: updateMealsArray(activePlan.value.dayA?.meals) }
 
     // If scope is all weeks or same_daily, also update Day B
     if (scope === 'all_weeks' || activePlan.value.rotationType === 'same_daily') {
-      const dayBMeals = [...(activePlan.value.dayB?.meals || [])]
-      while (dayBMeals.length <= slotIndex) {
-        const idx = dayBMeals.length
-        dayBMeals.push({ slot: slots[idx] as typeof slots[number], portionMultiplier: 1 })
-      }
-      dayBMeals[slotIndex] = newMeal
-      updateData.dayB = { meals: dayBMeals }
+      updateData.dayB = { meals: updateMealsArray(activePlan.value.dayB?.meals) }
     }
 
     return updatePlan(activePlan.value.id, updateData)
