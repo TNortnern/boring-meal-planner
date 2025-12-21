@@ -6,8 +6,10 @@ echo "🚀 Starting BORING Meal Planner..."
 # Start Payload CMS in background on port 3002
 # Note: Migrations are applied via push:true in payload.config.ts
 echo "📦 Starting Payload CMS on port 3002..."
+cd /app/payload
 PORT=3002 HOSTNAME=0.0.0.0 NODE_OPTIONS="--no-deprecation" npx next start &
 PAYLOAD_PID=$!
+cd /app
 
 # Wait for Payload to be ready
 echo "⏳ Waiting for Payload to start..."

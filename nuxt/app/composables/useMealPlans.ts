@@ -267,8 +267,52 @@ const _useMealPlans = () => {
     })
   }
 
-  // Create a default meal plan for the current week
-  const createDefaultPlan = async () => {
+  // Swap meal with recipe data and scope option
+  const swapMealWithRecipeData = async (
+    slotKey: string,
+    recipeData: RecipeData,
+    scope: 'current_week' | 'all_weeks'
+  ) => {
+    if (!activePlan.value) return { success: false, error: 'No active meal plan' }
+
+    const slots = ['meal_1', 'meal_2', 'meal_3', 'meal_4', 'meal_5'] as const
+    const slotIndex = slots.indexOf(slotKey as typeof slots[number])
+    if (slotIndex === -1) return { success: false, error: 'Invalid slot' }
+
+    const newMeal: MealSlot = {
+      slot: slotKey as typeof slots[number],
+      recipeData,
+      portionMultiplier: 1
+    }
+
+    // Update both Day A and Day B if scope is all weeks
+    const updateData: Partial<MealPlan> = {}
+
+    // Update Day A
+    const dayAMeals = [...(activePlan.value.dayA?.meals || [])]
+    while (dayAMeals.length <= slotIndex) {
+      const idx = dayAMeals.length
+      dayAMeals.push({ slot: slots[idx] as typeof slots[number], portionMultiplier: 1 })
+    }
+    dayAMeals[slotIndex] = newMeal
+    updateData.dayA = { meals: dayAMeals }
+
+    // If scope is all weeks or same_daily, also update Day B
+    if (scope === 'all_weeks' || activePlan.value.rotationType === 'same_daily') {
+      const dayBMeals = [...(activePlan.value.dayB?.meals || [])]
+      while (dayBMeals.length <= slotIndex) {
+        const idx = dayBMeals.length
+        dayBMeals.push({ slot: slots[idx] as typeof slots[number], portionMultiplier: 1 })
+      }
+      dayBMeals[slotIndex] = newMeal
+      updateData.dayB = { meals: dayBMeals }
+    }
+
+    return updatePlan(activePlan.value.id, updateData)
+  }
+
+  // Create a default meal plan for the current week with prefilled meals
+  const createDefaultPlan = async (prefillMeals?: RecipeData[]) => {
     if (!user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
@@ -277,6 +321,15 @@ const _useMealPlans = () => {
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
     const monday = new Date(today)
     monday.setDate(today.getDate() + mondayOffset)
+
+    const slots = ['meal_1', 'meal_2', 'meal_3'] as const
+    const defaultMeals: MealSlot[] = prefillMeals
+      ? prefillMeals.slice(0, 3).map((recipe, index) => ({
+          slot: slots[index] as typeof slots[number],
+          recipeData: recipe,
+          portionMultiplier: 1
+        }))
+      : []
 
     return createPlan({
       name: `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
@@ -288,7 +341,8 @@ const _useMealPlans = () => {
         carbs: 200,
         fat: 70
       },
-      dayA: { meals: [] }
+      dayA: { meals: defaultMeals },
+      dayB: { meals: defaultMeals }
     })
   }
 
@@ -348,6 +402,7 @@ const _useMealPlans = () => {
     createDefaultPlan,
     updatePlan,
     swapMeal,
+    swapMealWithRecipeData,
     addMealWithRecipeData,
     updatePortion,
     init

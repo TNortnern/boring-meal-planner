@@ -3,7 +3,8 @@ import { format, addDays, startOfWeek } from 'date-fns'
 import { useMacroCalculator } from '~/composables/useMacroCalculator'
 import { useMealPlanGenerator } from '~/composables/useMealPlanGenerator'
 import type { UserStats } from '~/composables/useMacroCalculator'
-import type { MealSlot } from '~/composables/useMealPlans'
+import type { MealSlot, RecipeData } from '~/composables/useMealPlans'
+import { boringRecipes, type Recipe } from '~/data/recipes'
 
 const toast = useToast()
 const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -337,6 +338,92 @@ const openEditMealModal = (meal: DisplayMeal, index: number) => {
   editMealModalOpen.value = true
 }
 
+// Swap modal - recipe selection and scope
+const recipeSearchQuery = ref('')
+const selectedRecipeForSwap = ref<Recipe | null>(null)
+const swapScope = ref<'current_week' | 'all_weeks'>('all_weeks')
+const isSwappingMeal = ref(false)
+
+const filteredRecipes = computed(() => {
+  const query = recipeSearchQuery.value.toLowerCase()
+  if (!query) return boringRecipes
+  return boringRecipes.filter(recipe =>
+    recipe.name.toLowerCase().includes(query)
+    || recipe.tags?.some(tag => tag.toLowerCase().includes(query))
+  )
+})
+
+const selectRecipeForSwap = (recipe: Recipe) => {
+  selectedRecipeForSwap.value = recipe
+}
+
+const confirmSwapMeal = async () => {
+  if (!swappingMeal.value || !selectedRecipeForSwap.value) return
+
+  isSwappingMeal.value = true
+  try {
+    // Convert Recipe to RecipeData format
+    const recipeData: RecipeData = {
+      id: selectedRecipeForSwap.value.id,
+      name: selectedRecipeForSwap.value.name,
+      description: selectedRecipeForSwap.value.description,
+      prepTime: selectedRecipeForSwap.value.prepTime,
+      macros: selectedRecipeForSwap.value.macros,
+      ingredientsList: selectedRecipeForSwap.value.ingredientsList,
+      instructions: selectedRecipeForSwap.value.instructions,
+      source: selectedRecipeForSwap.value.source,
+      tags: selectedRecipeForSwap.value.tags
+    }
+
+    const result = await mealPlansApi.swapMealWithRecipeData(
+      swappingMeal.value.slotKey,
+      recipeData,
+      swapScope.value
+    )
+
+    if (result.success) {
+      toast.add({
+        title: 'Meal Swapped',
+        description: `${selectedRecipeForSwap.value.name} is now your ${swappingMeal.value.slot}`,
+        color: 'success'
+      })
+      swapMealModalOpen.value = false
+      // Reset swap modal state
+      selectedRecipeForSwap.value = null
+      recipeSearchQuery.value = ''
+    } else {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to swap meal',
+        color: 'error'
+      })
+    }
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to swap meal',
+      color: 'error'
+    })
+  } finally {
+    isSwappingMeal.value = false
+  }
+}
+
+// Get default prefill meals (first 3 recipes)
+const getDefaultPrefillMeals = (): RecipeData[] => {
+  return boringRecipes.slice(0, 3).map(recipe => ({
+    id: recipe.id,
+    name: recipe.name,
+    description: recipe.description,
+    prepTime: recipe.prepTime,
+    macros: recipe.macros,
+    ingredientsList: recipe.ingredientsList,
+    instructions: recipe.instructions,
+    source: recipe.source,
+    tags: recipe.tags
+  }))
+}
+
 // Save rotation type to API
 const isSavingRotation = ref(false)
 const updateRotationType = async (newType: 'same_daily' | 'ab_rotation') => {
@@ -361,6 +448,19 @@ onMounted(async () => {
       progressLogs.init(),
       mealPlansApi.init()
     ])
+
+    // Auto-create meal plan with prefilled meals if user has no active plan
+    if (!mealPlansApi.activePlan.value) {
+      const prefillMeals = getDefaultPrefillMeals()
+      const result = await mealPlansApi.createDefaultPlan(prefillMeals)
+      if (result.success) {
+        toast.add({
+          title: 'Welcome!',
+          description: 'We\'ve created your first meal plan with some default meals',
+          color: 'success'
+        })
+      }
+    }
   }
 })
 
@@ -746,5 +846,158 @@ watch(isAuthenticated, async (authenticated) => {
         </UDashboardSlideover>
       </template>
     </USlideover>
+
+    <!-- Swap Meal Modal -->
+    <UModal v-model:open="swapMealModalOpen">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold">
+                Swap {{ swappingMeal?.slot }}
+              </h3>
+              <UButton
+                icon="i-lucide-x"
+                variant="ghost"
+                color="neutral"
+                size="sm"
+                @click="swapMealModalOpen = false"
+              />
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <!-- Scope selection -->
+            <div class="p-3 rounded-lg bg-muted/20 border border-default">
+              <p class="text-sm font-medium mb-2">
+                Apply swap to:
+              </p>
+              <UButtonGroup class="w-full">
+                <UButton
+                  :variant="swapScope === 'all_weeks' ? 'solid' : 'outline'"
+                  :color="swapScope === 'all_weeks' ? 'primary' : 'neutral'"
+                  size="sm"
+                  class="flex-1"
+                  @click="swapScope = 'all_weeks'"
+                >
+                  All Weeks
+                </UButton>
+                <UButton
+                  :variant="swapScope === 'current_week' ? 'solid' : 'outline'"
+                  :color="swapScope === 'current_week' ? 'primary' : 'neutral'"
+                  size="sm"
+                  class="flex-1"
+                  @click="swapScope = 'current_week'"
+                >
+                  Current Week Only
+                </UButton>
+              </UButtonGroup>
+            </div>
+
+            <!-- Search -->
+            <UInput
+              v-model="recipeSearchQuery"
+              placeholder="Search recipes..."
+              icon="i-lucide-search"
+              class="w-full"
+            />
+
+            <!-- Recipe list -->
+            <div class="max-h-80 overflow-y-auto space-y-2">
+              <button
+                v-for="recipe in filteredRecipes"
+                :key="recipe.id"
+                type="button"
+                class="w-full p-3 rounded-lg text-left transition-all border"
+                :class="selectedRecipeForSwap?.id === recipe.id
+                  ? 'bg-primary/10 border-primary'
+                  : 'bg-elevated border-default hover:border-muted'"
+                @click="selectRecipeForSwap(recipe)"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="font-medium">
+                      {{ recipe.name }}
+                    </div>
+                    <div class="text-xs text-muted mt-0.5">
+                      {{ recipe.prepTime }} min prep
+                    </div>
+                  </div>
+                  <div class="text-right text-sm">
+                    <div class="font-medium">
+                      {{ recipe.macros.calories }} kcal
+                    </div>
+                    <div class="flex items-center gap-1.5 text-xs">
+                      <span class="text-blue-500">{{ recipe.macros.protein }}p</span>
+                      <span class="text-amber-500">{{ recipe.macros.carbs }}c</span>
+                      <span class="text-rose-500">{{ recipe.macros.fat }}f</span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-3">
+              <UButton variant="ghost" color="neutral" @click="swapMealModalOpen = false">
+                Cancel
+              </UButton>
+              <UButton
+                :disabled="!selectedRecipeForSwap"
+                :loading="isSwappingMeal"
+                @click="confirmSwapMeal"
+              >
+                Swap Meal
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- Edit Meal Modal (placeholder) -->
+    <UModal v-model:open="editMealModalOpen">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold">
+                Edit {{ editingMeal?.slot }}
+              </h3>
+              <UButton
+                icon="i-lucide-x"
+                variant="ghost"
+                color="neutral"
+                size="sm"
+                @click="editMealModalOpen = false"
+              />
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <p class="text-muted">
+              Edit functionality coming soon. For now, use "Swap Meal" to change to a different recipe.
+            </p>
+            <div v-if="editingMeal" class="p-4 rounded-lg bg-muted/20">
+              <div class="font-medium">
+                {{ editingMeal.recipe }}
+              </div>
+              <div class="text-sm text-muted mt-1">
+                {{ editingMeal.macros.calories }} kcal · {{ editingMeal.macros.protein }}p · {{ editingMeal.macros.carbs }}c · {{ editingMeal.macros.fat }}f
+              </div>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-3">
+              <UButton variant="ghost" color="neutral" @click="editMealModalOpen = false">
+                Close
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </UDashboardPanel>
 </template>
