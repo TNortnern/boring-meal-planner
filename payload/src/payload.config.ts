@@ -52,7 +52,9 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || 'postgresql://postgres:postgres@localhost:5433/boring_meal_planner'
-    }
+    },
+    // Auto-sync database schema on startup
+    push: true
   }),
 
   plugins: [],
