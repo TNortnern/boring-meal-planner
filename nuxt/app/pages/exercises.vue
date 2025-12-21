@@ -13,9 +13,23 @@ const videoUrl = ref('')
 const showWorkoutDayModal = ref(false)
 const exerciseToAdd = ref<Exercise | null>(null)
 const selectedWorkoutDay = ref<number | null>(null)
+const isAddingExercise = ref(false)
 
 const toast = useToast()
-const { currentPlan } = useWorkouts()
+const { isAuthenticated } = useAuth()
+const workoutPlansApi = useWorkoutPlans()
+
+// Computed: get workouts from API plan
+const currentPlanWorkouts = computed(() => {
+  if (workoutPlansApi.activePlan.value) {
+    return workoutPlansApi.activePlan.value.workouts.map((w, index) => ({
+      name: w.dayName,
+      focus: w.dayOfWeek || `Day ${index + 1}`,
+      exercises: w.exercises
+    }))
+  }
+  return []
+})
 
 const muscleGroups = [
   { value: 'chest', label: 'Chest', icon: 'i-lucide-square' },
@@ -145,50 +159,62 @@ const openAddToWorkout = (exercise: Exercise) => {
   showWorkoutDayModal.value = true
 }
 
-const addExerciseToWorkout = () => {
+const addExerciseToWorkout = async () => {
   if (!exerciseToAdd.value || selectedWorkoutDay.value === null) return
 
-  const day = currentPlan.value.days[selectedWorkoutDay.value]
-  if (!day) return
+  const workout = currentPlanWorkouts.value[selectedWorkoutDay.value]
+  if (!workout) return
 
-  // Get default sets and reps based on difficulty
-  const getDefaultSetsReps = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner':
-        return { sets: 3, reps: '8-10' }
-      case 'intermediate':
-        return { sets: 3, reps: '10-12' }
-      case 'advanced':
-        return { sets: 4, reps: '8-12' }
-      default:
-        return { sets: 3, reps: '10-12' }
+  isAddingExercise.value = true
+
+  try {
+    // Get default sets and reps based on difficulty
+    const getDefaultSetsReps = (difficulty: string) => {
+      switch (difficulty) {
+        case 'beginner':
+          return { sets: 3, reps: '8-10' }
+        case 'intermediate':
+          return { sets: 3, reps: '10-12' }
+        case 'advanced':
+          return { sets: 4, reps: '8-12' }
+        default:
+          return { sets: 3, reps: '10-12' }
+      }
     }
+
+    const { sets, reps } = getDefaultSetsReps(exerciseToAdd.value.difficulty)
+
+    // Add exercise to the workout day via API
+    const result = await workoutPlansApi.addExercise(selectedWorkoutDay.value, {
+      exercise: exerciseToAdd.value.name, // Store exercise name for now
+      sets,
+      reps,
+      notes: exerciseToAdd.value.instructions
+    })
+
+    if (result.success) {
+      // Show success toast
+      toast.add({
+        title: 'Exercise added',
+        description: `${exerciseToAdd.value.name} added to ${workout.name}`,
+        color: 'success'
+      })
+
+      // Close modals
+      showWorkoutDayModal.value = false
+      selectedExercise.value = null
+      exerciseToAdd.value = null
+      selectedWorkoutDay.value = null
+    } else {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to add exercise',
+        color: 'error'
+      })
+    }
+  } finally {
+    isAddingExercise.value = false
   }
-
-  const { sets, reps } = getDefaultSetsReps(exerciseToAdd.value.difficulty)
-
-  // Add exercise to the workout day
-  day.exercises.push({
-    name: exerciseToAdd.value.name,
-    sets,
-    reps,
-    targetWeight: 0,
-    videoUrl: `https://www.youtube.com/watch?v=${exerciseToAdd.value.youtubeId}`,
-    instructions: exerciseToAdd.value.instructions
-  })
-
-  // Show success toast
-  toast.add({
-    title: 'Exercise added',
-    description: `${exerciseToAdd.value.name} added to ${day.name}`,
-    color: 'success'
-  })
-
-  // Close modals
-  showWorkoutDayModal.value = false
-  selectedExercise.value = null
-  exerciseToAdd.value = null
-  selectedWorkoutDay.value = null
 }
 
 type BenchmarkLevel = 'beginner' | 'intermediate' | 'advanced'
@@ -214,6 +240,20 @@ const getRepBenchmarks = (exercise: Exercise): Record<BenchmarkLevel, BenchmarkD
 
   return benchmarks
 }
+
+// Initialize API data on mount
+onMounted(async () => {
+  if (isAuthenticated.value) {
+    await workoutPlansApi.init()
+  }
+})
+
+// Watch for auth changes
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    await workoutPlansApi.init()
+  }
+})
 </script>
 
 <template>
@@ -661,8 +701,15 @@ const getRepBenchmarks = (exercise: Exercise): Record<BenchmarkLevel, BenchmarkD
           </template>
 
           <div class="space-y-3 max-h-[60vh] overflow-y-auto">
+            <div v-if="currentPlanWorkouts.length === 0" class="text-center py-6 text-muted">
+              <UIcon name="i-lucide-calendar-x" class="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p>No active workout plan found.</p>
+              <p class="text-sm">
+                Create a workout plan first to add exercises.
+              </p>
+            </div>
             <button
-              v-for="(day, index) in currentPlan.days"
+              v-for="(day, index) in currentPlanWorkouts"
               :key="index"
               type="button"
               class="w-full p-4 rounded-lg border transition-all text-left"
@@ -696,11 +743,17 @@ const getRepBenchmarks = (exercise: Exercise): Record<BenchmarkLevel, BenchmarkD
 
           <template #footer>
             <div class="flex justify-end gap-3">
-              <UButton variant="ghost" color="neutral" @click="showWorkoutDayModal = false">
+              <UButton
+                variant="ghost"
+                color="neutral"
+                :disabled="isAddingExercise"
+                @click="showWorkoutDayModal = false"
+              >
                 Cancel
               </UButton>
               <UButton
-                :disabled="selectedWorkoutDay === null"
+                :disabled="selectedWorkoutDay === null || currentPlanWorkouts.length === 0"
+                :loading="isAddingExercise"
                 @click="addExerciseToWorkout"
               >
                 Add Exercise

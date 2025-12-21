@@ -35,6 +35,13 @@ export interface ProgressLog {
   notes?: string
   isCheckInDay?: boolean
   photo?: number | string
+  shoppingListPurchased?: string[]
+  measurements?: {
+    chest?: number
+    arms?: number
+    thighs?: number
+    bodyFat?: number
+  }
 }
 
 export interface CreateProgressLogInput {
@@ -223,6 +230,179 @@ const _useProgressLogs = () => {
     return updateLog(todayLog.id, { steps })
   }
 
+  // Toggle shopping list item purchased state
+  const toggleShoppingItem = async (ingredientName: string, purchased: boolean) => {
+    if (!user.value) return { success: false, error: 'Not authenticated' }
+
+    const today = new Date()
+    let todayLog = getTodayLog.value
+
+    // Create today's log if it doesn't exist
+    if (!todayLog) {
+      const createResult = await createLog({ date: today })
+      if (!createResult.success) return createResult
+      todayLog = createResult.data
+    }
+
+    if (!todayLog) return { success: false, error: 'Failed to get today\'s log' }
+
+    // Update the shopping list array
+    const currentPurchased = [...(todayLog.shoppingListPurchased || [])]
+    const itemIndex = currentPurchased.indexOf(ingredientName)
+
+    if (purchased && itemIndex === -1) {
+      currentPurchased.push(ingredientName)
+    } else if (!purchased && itemIndex !== -1) {
+      currentPurchased.splice(itemIndex, 1)
+    }
+
+    return updateLog(todayLog.id, { shoppingListPurchased: currentPurchased })
+  }
+
+  // Get purchased shopping items for today
+  const getTodayPurchasedItems = computed(() => {
+    const todayLog = getTodayLog.value
+    return new Set(todayLog?.shoppingListPurchased || [])
+  })
+
+  // Add a full check-in (weight, measurements, etc.)
+  const addCheckIn = async (data: {
+    weight?: { value: number, unit: 'kg' | 'lbs' }
+    waist?: { value: number, unit: 'cm' | 'in' }
+    measurements?: { chest?: number, arms?: number, thighs?: number, bodyFat?: number }
+    notes?: string
+    isCheckInDay?: boolean
+  }) => {
+    if (!user.value) return { success: false, error: 'Not authenticated' }
+
+    const today = new Date()
+    let todayLog = getTodayLog.value
+
+    // Create today's log if it doesn't exist
+    if (!todayLog) {
+      const createResult = await createLog({
+        date: today,
+        weight: data.weight,
+        waist: data.waist,
+        notes: data.notes,
+        isCheckInDay: data.isCheckInDay
+      })
+      if (!createResult.success) return createResult
+      todayLog = createResult.data
+    }
+
+    if (!todayLog) return { success: false, error: 'Failed to get today\'s log' }
+
+    // Update with all the check-in data
+    return updateLog(todayLog.id, {
+      weight: data.weight,
+      waist: data.waist,
+      measurements: data.measurements,
+      notes: data.notes,
+      isCheckInDay: data.isCheckInDay ?? true
+    })
+  }
+
+  // Update weight for a specific date (used for historical entries)
+  const addWeightForDate = async (weight: number, unit: 'kg' | 'lbs', date: Date) => {
+    if (!user.value) return { success: false, error: 'Not authenticated' }
+
+    // Check if a log exists for this date
+    const existingLog = logs.value.find(log => isSameDay(new Date(log.date), date))
+
+    if (existingLog) {
+      return updateLog(existingLog.id, { weight: { value: weight, unit } })
+    }
+
+    // Create a new log for that date
+    return createLog({
+      date,
+      weight: { value: weight, unit }
+    })
+  }
+
+  // Delete a log entry
+  const deleteLog = async (id: number) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await $fetch(`/api/progress-logs/${id}`, {
+        method: 'DELETE'
+      })
+
+      // Remove from local state
+      const index = logs.value.findIndex(log => log.id === id)
+      if (index !== -1) {
+        logs.value.splice(index, 1)
+      }
+
+      return { success: true }
+    } catch {
+      error.value = 'Failed to delete log'
+      return { success: false, error: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Get all check-in logs (logs with isCheckInDay=true or measurements)
+  const checkInHistory = computed(() => {
+    return logs.value
+      .filter(log => log.isCheckInDay || log.weight?.value || log.measurements)
+      .map(log => ({
+        id: log.id,
+        date: new Date(log.date),
+        weight: log.weight?.value,
+        waist: log.waist?.value,
+        chest: log.measurements?.chest,
+        arms: log.measurements?.arms,
+        thighs: log.measurements?.thighs,
+        bodyFat: log.measurements?.bodyFat,
+        notes: log.notes
+      }))
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+  })
+
+  // Get first and latest measurements for comparison (includes waist from separate field)
+  const latestMeasurement = computed(() => {
+    const logsWithMeasurements = logs.value.filter(log => log.measurements || log.waist?.value)
+    if (logsWithMeasurements.length === 0) return null
+
+    const sorted = [...logsWithMeasurements].sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+    const latest = sorted[0]
+    if (!latest) return null
+
+    return {
+      waist: latest.waist?.value,
+      chest: latest.measurements?.chest,
+      arms: latest.measurements?.arms,
+      thighs: latest.measurements?.thighs,
+      bodyFat: latest.measurements?.bodyFat
+    }
+  })
+
+  const firstMeasurement = computed(() => {
+    const logsWithMeasurements = logs.value.filter(log => log.measurements || log.waist?.value)
+    if (logsWithMeasurements.length === 0) return null
+
+    const sorted = [...logsWithMeasurements].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+    const first = sorted[0]
+    if (!first) return null
+
+    return {
+      waist: first.waist?.value,
+      chest: first.measurements?.chest,
+      arms: first.measurements?.arms,
+      thighs: first.measurements?.thighs,
+      bodyFat: first.measurements?.bodyFat
+    }
+  })
+
   // Computed: weight history from logs
   const weightHistory = computed(() => {
     return logs.value
@@ -257,15 +437,23 @@ const _useProgressLogs = () => {
     getTodayLog,
     weightHistory,
     currentWeight,
+    getTodayPurchasedItems,
+    checkInHistory,
+    latestMeasurement,
+    firstMeasurement,
 
     // Methods
     fetchLogs,
     createLog,
     updateLog,
+    deleteLog,
     markMealEaten,
     markWorkoutCompleted,
     markCardioCompleted,
     updateSteps,
+    toggleShoppingItem,
+    addCheckIn,
+    addWeightForDate,
     init
   }
 }

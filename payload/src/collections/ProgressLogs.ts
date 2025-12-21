@@ -136,6 +136,26 @@ export const ProgressLogs: CollectionConfig = {
       admin: {
         description: 'Optional progress photo'
       }
+    },
+    {
+      name: 'shoppingListPurchased',
+      type: 'json',
+      admin: {
+        description: 'Array of purchased ingredient names for this day'
+      }
+    },
+    {
+      name: 'measurements',
+      type: 'group',
+      admin: {
+        description: 'Body measurements for check-in days'
+      },
+      fields: [
+        { name: 'chest', type: 'number' },
+        { name: 'arms', type: 'number' },
+        { name: 'thighs', type: 'number' },
+        { name: 'bodyFat', type: 'number' }
+      ]
     }
   ]
 }

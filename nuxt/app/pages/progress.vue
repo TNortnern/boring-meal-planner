@@ -1,37 +1,81 @@
 <script setup lang="ts">
 import { format } from 'date-fns'
 
-const {
-  startWeight,
-  goalWeight,
-  currentWeight,
-  weightHistory,
-  measurementHistory,
-  progressPhotos,
-  weeklyAverage,
-  totalLost,
-  progressToGoal,
-  latestMeasurement,
-  firstMeasurement,
-  addWeightEntry,
-  addMeasurement,
-  addProgressPhoto,
-  editCheckIn,
-  deleteCheckIn
-} = useProgress()
+// API-backed composables
+const { user, isAuthenticated } = useAuth()
+const progressLogs = useProgressLogs()
+const { uploadProgressPhoto: bunnyUploadProgressPhoto } = useBunnyUpload()
 
-const { uploadProgressPhoto } = useBunnyUpload()
-
+const toast = useToast()
 const activeTab = ref<'overview' | 'weight' | 'photos' | 'measurements'>('overview')
 
+// User profile data for goals
+const startWeight = computed(() => user.value?.startingWeight || 195)
+const goalWeight = computed(() => user.value?.goalWeight || 175)
+
+// Current weight from latest log
+const currentWeight = computed(() => progressLogs.currentWeight.value || startWeight.value)
+
+// Weight history from API
+const weightHistory = computed(() => progressLogs.weightHistory.value)
+
+// Measurement history from check-in logs
+const measurementHistory = computed(() => {
+  return progressLogs.checkInHistory.value
+    .filter(log => log.chest || log.arms || log.thighs || log.waist)
+    .map(log => ({
+      date: log.date,
+      waist: log.waist || 0,
+      chest: log.chest || 0,
+      arms: log.arms || 0,
+      thighs: log.thighs || 0,
+      bodyFat: log.bodyFat
+    }))
+})
+
+// Progress photos (stored in logs with photo field - for now using localStorage fallback)
+const progressPhotos = useLocalStorage<Array<{ id: string, date: Date, type: string, url: string }>>('progress-photos', [])
+
+// Computed values
 const firstWeightEntry = computed(() => {
   const sorted = [...weightHistory.value].sort((a, b) => a.date.getTime() - b.date.getTime())
   return sorted[0]
 })
 
+const weeklyAverage = computed(() => {
+  if (weightHistory.value.length < 2) return 0
+
+  const sorted = [...weightHistory.value].sort((a, b) => a.date.getTime() - b.date.getTime())
+  const recent = sorted.slice(-2)
+
+  if (recent.length < 2) return 0
+
+  const entry0 = recent[0]
+  const entry1 = recent[1]
+  if (!entry0 || !entry1) return 0
+
+  const daysDiff = Math.max(1, (entry1.date.getTime() - entry0.date.getTime()) / (1000 * 60 * 60 * 24))
+  const weightDiff = entry0.weight - entry1.weight
+
+  return (weightDiff / daysDiff) * 7
+})
+
+const totalLost = computed(() => startWeight.value - currentWeight.value)
+
+const progressToGoal = computed(() => {
+  const total = startWeight.value - goalWeight.value
+  const current = startWeight.value - currentWeight.value
+  if (total <= 0) return 0
+  return Math.min((current / total) * 100, 100)
+})
+
+const latestMeasurement = computed(() => progressLogs.latestMeasurement.value || { waist: 0, chest: 0, arms: 0, thighs: 0, bodyFat: undefined })
+const firstMeasurement = computed(() => progressLogs.firstMeasurement.value || { waist: 0, chest: 0, arms: 0, thighs: 0, bodyFat: undefined })
+
 // Check-in data
 const lastCheckIn = computed(() => {
-  if (measurementHistory.value.length === 0) {
+  const history = progressLogs.checkInHistory.value
+  if (history.length === 0) {
     return {
       date: new Date(),
       weight: currentWeight.value,
@@ -43,8 +87,7 @@ const lastCheckIn = computed(() => {
       notes: ''
     }
   }
-  const sorted = [...measurementHistory.value].sort((a, b) => b.date.getTime() - a.date.getTime())
-  const latest = sorted[0]
+  const latest = history[0]
   if (!latest) {
     return {
       date: new Date(),
@@ -58,15 +101,22 @@ const lastCheckIn = computed(() => {
     }
   }
   return {
-    ...latest,
-    weight: currentWeight.value,
-    notes: ''
+    date: latest.date,
+    weight: latest.weight || currentWeight.value,
+    waist: latest.waist || 0,
+    chest: latest.chest || 0,
+    arms: latest.arms || 0,
+    thighs: latest.thighs || 0,
+    bodyFat: latest.bodyFat,
+    notes: latest.notes || ''
   }
 })
 
 const checkInOpen = ref(false)
 const editMode = ref(false)
+const editingLogId = ref<number | null>(null)
 const editingDate = ref<Date | null>(null)
+const isSaving = ref(false)
 const newCheckIn = ref({
   weight: 0,
   waist: 0,
@@ -79,6 +129,7 @@ const newCheckIn = ref({
 
 const openNewCheckIn = () => {
   editMode.value = false
+  editingLogId.value = null
   editingDate.value = null
   newCheckIn.value = {
     weight: currentWeight.value,
@@ -92,119 +143,131 @@ const openNewCheckIn = () => {
   checkInOpen.value = true
 }
 
-const openEditCheckIn = (date: Date) => {
+const openEditCheckIn = (entry: { id?: number, date: Date, weight?: number, waist?: number, chest?: number, arms?: number, thighs?: number, bodyFat?: number }) => {
   editMode.value = true
-  editingDate.value = date
+  editingLogId.value = entry.id || null
+  editingDate.value = entry.date
 
-  // Find the weight entry for this date
-  const weightEntry = weightHistory.value.find(e => e.date.getTime() === date.getTime())
-  const measurementEntry = measurementHistory.value.find(e => e.date.getTime() === date.getTime())
-
-  if (weightEntry && measurementEntry) {
-    newCheckIn.value = {
-      weight: weightEntry.weight,
-      waist: measurementEntry.waist,
-      chest: measurementEntry.chest,
-      arms: measurementEntry.arms,
-      thighs: measurementEntry.thighs,
-      bodyFat: measurementEntry.bodyFat,
-      notes: ''
-    }
+  newCheckIn.value = {
+    weight: entry.weight || currentWeight.value,
+    waist: entry.waist || 0,
+    chest: entry.chest || 0,
+    arms: entry.arms || 0,
+    thighs: entry.thighs || 0,
+    bodyFat: entry.bodyFat,
+    notes: ''
   }
 
   checkInOpen.value = true
 }
 
-const toast = useToast()
 const photoUploadLoading = ref(false)
 
-const saveCheckIn = () => {
-  if (editMode.value && editingDate.value) {
-    editCheckIn(editingDate.value, {
-      weight: newCheckIn.value.weight,
-      measurement: {
-        waist: newCheckIn.value.waist,
-        chest: newCheckIn.value.chest,
-        arms: newCheckIn.value.arms,
-        thighs: newCheckIn.value.thighs,
-        bodyFat: newCheckIn.value.bodyFat
+const saveCheckIn = async () => {
+  isSaving.value = true
+
+  try {
+    if (editMode.value && editingLogId.value) {
+      // Update existing log
+      const result = await progressLogs.updateLog(editingLogId.value, {
+        weight: { value: newCheckIn.value.weight, unit: 'lbs' },
+        waist: { value: newCheckIn.value.waist, unit: 'in' },
+        measurements: {
+          chest: newCheckIn.value.chest,
+          arms: newCheckIn.value.arms,
+          thighs: newCheckIn.value.thighs,
+          bodyFat: newCheckIn.value.bodyFat
+        },
+        notes: newCheckIn.value.notes,
+        isCheckInDay: true
+      })
+
+      if (result.success) {
+        toast.add({
+          title: 'Check-in updated',
+          description: 'Your progress has been updated.',
+          icon: 'i-lucide-check',
+          color: 'success'
+        })
+      } else {
+        toast.add({
+          title: 'Error',
+          description: result.error || 'Failed to update check-in',
+          color: 'error'
+        })
       }
-    })
-    toast.add({
-      title: 'Check-in updated',
-      description: 'Your progress has been updated.',
-      icon: 'i-lucide-check',
-      color: 'success'
-    })
-  } else {
-    addWeightEntry(newCheckIn.value.weight)
-    addMeasurement({
-      waist: newCheckIn.value.waist,
-      chest: newCheckIn.value.chest,
-      arms: newCheckIn.value.arms,
-      thighs: newCheckIn.value.thighs,
-      bodyFat: newCheckIn.value.bodyFat
-    })
+    } else {
+      // Create new check-in
+      const result = await progressLogs.addCheckIn({
+        weight: { value: newCheckIn.value.weight, unit: 'lbs' },
+        waist: { value: newCheckIn.value.waist, unit: 'in' },
+        measurements: {
+          chest: newCheckIn.value.chest,
+          arms: newCheckIn.value.arms,
+          thighs: newCheckIn.value.thighs,
+          bodyFat: newCheckIn.value.bodyFat
+        },
+        notes: newCheckIn.value.notes,
+        isCheckInDay: true
+      })
 
-    toast.add({
-      title: 'Check-in saved',
-      description: 'Your progress has been recorded.',
-      icon: 'i-lucide-check',
-      color: 'success'
-    })
+      if (result.success) {
+        toast.add({
+          title: 'Check-in saved',
+          description: 'Your progress has been recorded.',
+          icon: 'i-lucide-check',
+          color: 'success'
+        })
+      } else {
+        toast.add({
+          title: 'Error',
+          description: result.error || 'Failed to save check-in',
+          color: 'error'
+        })
+      }
+    }
+
+    checkInOpen.value = false
+  } finally {
+    isSaving.value = false
   }
-
-  checkInOpen.value = false
 }
 
 const deleteCheckInOpen = ref(false)
+const deletingLogId = ref<number | null>(null)
 const deletingDate = ref<Date | null>(null)
 
-const openDeleteCheckIn = (date: Date) => {
-  deletingDate.value = date
+const openDeleteCheckIn = (entry: { id?: number, date: Date }) => {
+  deletingLogId.value = entry.id || null
+  deletingDate.value = entry.date
   deleteCheckInOpen.value = true
 }
 
-const confirmDeleteCheckIn = () => {
-  if (deletingDate.value) {
-    deleteCheckIn(deletingDate.value)
-    toast.add({
-      title: 'Check-in deleted',
-      description: 'The check-in has been removed.',
-      icon: 'i-lucide-trash',
-      color: 'error'
-    })
+const confirmDeleteCheckIn = async () => {
+  if (deletingLogId.value) {
+    const result = await progressLogs.deleteLog(deletingLogId.value)
+    if (result.success) {
+      toast.add({
+        title: 'Check-in deleted',
+        description: 'The check-in has been removed.',
+        icon: 'i-lucide-trash',
+        color: 'error'
+      })
+    } else {
+      toast.add({
+        title: 'Error',
+        description: 'Failed to delete check-in',
+        color: 'error'
+      })
+    }
   }
   deleteCheckInOpen.value = false
+  deletingLogId.value = null
   deletingDate.value = null
 }
 
-// Combined check-in history (sorted by date descending)
-const checkInHistory = computed(() => {
-  // Get all unique dates from both weight and measurement history
-  const dates = new Set([
-    ...weightHistory.value.map(e => e.date.getTime()),
-    ...measurementHistory.value.map(e => e.date.getTime())
-  ])
-
-  return Array.from(dates)
-    .map((timestamp) => {
-      const date = new Date(timestamp)
-      const weight = weightHistory.value.find(e => e.date.getTime() === timestamp)
-      const measurement = measurementHistory.value.find(e => e.date.getTime() === timestamp)
-
-      return {
-        date,
-        weight: weight?.weight,
-        waist: measurement?.waist,
-        chest: measurement?.chest,
-        arms: measurement?.arms,
-        thighs: measurement?.thighs,
-        bodyFat: measurement?.bodyFat
-      }
-    })
-    .sort((a, b) => b.date.getTime() - a.date.getTime())
-})
+// Check-in history from API
+const checkInHistory = computed(() => progressLogs.checkInHistory.value)
 
 const addWeightOpen = ref(false)
 const newWeightEntry = ref({
@@ -220,15 +283,28 @@ const _openAddWeight = () => {
   addWeightOpen.value = true
 }
 
-const saveWeightEntry = () => {
-  addWeightEntry(newWeightEntry.value.weight, new Date(newWeightEntry.value.date))
-  toast.add({
-    title: 'Weight added',
-    description: 'Your weight has been recorded.',
-    icon: 'i-lucide-check',
-    color: 'success'
-  })
-  addWeightOpen.value = false
+const saveWeightEntry = async () => {
+  const result = await progressLogs.addWeightForDate(
+    newWeightEntry.value.weight,
+    'lbs',
+    new Date(newWeightEntry.value.date)
+  )
+
+  if (result.success) {
+    toast.add({
+      title: 'Weight added',
+      description: 'Your weight has been recorded.',
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+    addWeightOpen.value = false
+  } else {
+    toast.add({
+      title: 'Error',
+      description: result.error || 'Failed to save weight',
+      color: 'error'
+    })
+  }
 }
 
 const handlePhotoUpload = async (event: Event) => {
@@ -241,10 +317,14 @@ const handlePhotoUpload = async (event: Event) => {
   photoUploadLoading.value = true
 
   try {
-    const result = await uploadProgressPhoto(file)
+    const result = await bunnyUploadProgressPhoto(file)
 
     if (result.success && result.url) {
-      addProgressPhoto({
+      // For now, store photos in localStorage until we add media upload to Payload
+      const id = `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      progressPhotos.value.push({
+        id,
+        date: new Date(),
         type: 'front',
         url: result.url
       })
@@ -275,6 +355,20 @@ const handlePhotoUpload = async (event: Event) => {
     input.value = ''
   }
 }
+
+// Initialize API data on mount
+onMounted(async () => {
+  if (isAuthenticated.value) {
+    await progressLogs.init()
+  }
+})
+
+// Watch for auth changes
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    await progressLogs.init()
+  }
+})
 </script>
 
 <template>
@@ -467,14 +561,14 @@ const handlePhotoUpload = async (event: Event) => {
                       size="xs"
                       variant="ghost"
                       color="neutral"
-                      @click="openEditCheckIn(entry.date)"
+                      @click="openEditCheckIn(entry)"
                     />
                     <UButton
                       icon="i-lucide-trash-2"
                       size="xs"
                       variant="ghost"
                       color="error"
-                      @click="openDeleteCheckIn(entry.date)"
+                      @click="openDeleteCheckIn(entry)"
                     />
                   </div>
                 </div>
@@ -848,10 +942,15 @@ const handlePhotoUpload = async (event: Event) => {
 
           <template #footer>
             <div class="flex justify-end gap-3">
-              <UButton variant="ghost" color="neutral" @click="checkInOpen = false">
+              <UButton
+                variant="ghost"
+                color="neutral"
+                :disabled="isSaving"
+                @click="checkInOpen = false"
+              >
                 Cancel
               </UButton>
-              <UButton @click="saveCheckIn">
+              <UButton :loading="isSaving" @click="saveCheckIn">
                 {{ editMode ? 'Update Check-in' : 'Save Check-in' }}
               </UButton>
             </div>

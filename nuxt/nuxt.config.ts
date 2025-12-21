@@ -15,7 +15,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     // Private config (server-side only)
-    payloadApiUrl: process.env.NUXT_PAYLOAD_API_URL || 'http://payload:3000',
+    payloadApiUrl: process.env.NUXT_PAYLOAD_API_URL || 'http://payload:3009',
     payloadApiKey: process.env.PAYLOAD_API_KEY || '',
 
     // Bunny CDN (server-side only)
@@ -25,37 +25,28 @@ export default defineNuxtConfig({
 
     // Public config (exposed to client)
     public: {
-      payloadUrl: process.env.NUXT_PUBLIC_PAYLOAD_URL || 'http://localhost:3010',
+      payloadUrl: process.env.NUXT_PUBLIC_PAYLOAD_URL || 'http://localhost:3009',
       bunnyCdnHostname: process.env.BUNNY_CDN_HOSTNAME || '',
       appName: 'BORING Meal Planner'
     }
   },
 
   routeRules: {
-    // Proxy Payload API
-    '/api/**': {
-      proxy: {
-        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3002'}/api/**`
-      }
-    },
+    // API proxy is handled by server/routes/api/[...path].ts
 
     // Proxy Next.js static assets (required for Payload admin)
     '/_next/**': {
-      proxy: {
-        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3002'}/_next/**`
-      }
+      proxy: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3009'}/_next/**`
     },
 
     // Proxy Payload admin interface
     '/admin/**': {
-      proxy: {
-        to: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3002'}/admin/**`
-      }
+      proxy: `${process.env.NUXT_PAYLOAD_API_URL || 'http://localhost:3009'}/admin/**`
     }
   },
 
   devServer: {
-    port: 3009
+    port: 3008
   },
 
   compatibilityDate: '2024-07-11',

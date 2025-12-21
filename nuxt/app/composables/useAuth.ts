@@ -15,6 +15,8 @@ export interface User {
     value?: number
     unit?: 'kg' | 'lbs'
   }
+  startingWeight?: number
+  goalWeight?: number
   goal?: 'cut' | 'maintain' | 'gain'
   liftingDaysPerWeek?: number
   dailyStepsEstimate?: number

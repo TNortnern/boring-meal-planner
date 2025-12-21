@@ -218,8 +218,9 @@ const shoppingList = computed(() => {
   ]
 })
 
-// Track purchased items locally
-const purchasedItems = ref<Set<string>>(new Set())
+// Track purchased items via API (uses progressLogs.shoppingListPurchased)
+const purchasedItems = computed(() => progressLogs.getTodayPurchasedItems.value)
+const isTogglingItem = ref<string | null>(null)
 
 const groupedShoppingList = computed(() => {
   const groups: Record<string, typeof shoppingList.value> = {}
@@ -233,11 +234,35 @@ const groupedShoppingList = computed(() => {
   return groups
 })
 
-const togglePurchased = (ingredient: string) => {
-  if (purchasedItems.value.has(ingredient)) {
-    purchasedItems.value.delete(ingredient)
-  } else {
-    purchasedItems.value.add(ingredient)
+const togglePurchased = async (ingredient: string) => {
+  isTogglingItem.value = ingredient
+  const currentlyPurchased = purchasedItems.value.has(ingredient)
+
+  try {
+    const result = await progressLogs.toggleShoppingItem(ingredient, !currentlyPurchased)
+    if (!result.success) {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to update shopping list',
+        color: 'error'
+      })
+    }
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to save shopping list',
+      color: 'error'
+    })
+  } finally {
+    isTogglingItem.value = null
+  }
+}
+
+const resetPurchasedItems = async () => {
+  // Reset all purchased items via API
+  const todayLog = progressLogs.getTodayLog.value
+  if (todayLog) {
+    await progressLogs.updateLog(todayLog.id, { shoppingListPurchased: [] })
   }
 }
 
@@ -638,6 +663,7 @@ watch(isAuthenticated, async (authenticated) => {
                   type="button"
                   class="w-full flex items-center gap-3 p-3 rounded-xl bg-elevated border border-default hover:border-primary transition-all group"
                   :class="{ 'opacity-50': item.purchased }"
+                  :disabled="isTogglingItem === item.ingredient"
                   @click="togglePurchased(item.ingredient)"
                 >
                   <!-- Checkbox -->
@@ -648,7 +674,13 @@ watch(isAuthenticated, async (authenticated) => {
                       : 'border-muted group-hover:border-primary'"
                   >
                     <UIcon
-                      v-if="item.purchased"
+                      v-if="isTogglingItem === item.ingredient"
+                      name="i-lucide-loader-2"
+                      class="w-3.5 h-3.5 animate-spin"
+                      :class="item.purchased ? 'text-white' : 'text-primary'"
+                    />
+                    <UIcon
+                      v-else-if="item.purchased"
                       name="i-lucide-check"
                       class="w-3.5 h-3.5 text-white"
                     />
@@ -680,11 +712,11 @@ watch(isAuthenticated, async (authenticated) => {
               <div class="flex items-center justify-between text-sm">
                 <span class="text-muted">Progress</span>
                 <span class="font-medium">
-                  {{ shoppingList.filter(i => i.purchased).length }} / {{ shoppingList.length }} items
+                  {{ purchasedItems.size }} / {{ shoppingList.length }} items
                 </span>
               </div>
               <UProgress
-                :model-value="(shoppingList.filter(i => i.purchased).length / shoppingList.length) * 100"
+                :model-value="(purchasedItems.size / shoppingList.length) * 100"
                 size="sm"
                 class="mt-2"
               />
@@ -705,7 +737,7 @@ watch(isAuthenticated, async (authenticated) => {
                 color="neutral"
                 block
                 icon="i-lucide-rotate-ccw"
-                @click="purchasedItems.clear()"
+                @click="resetPurchasedItems"
               >
                 Reset All
               </UButton>

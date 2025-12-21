@@ -69,6 +69,20 @@ export const Users: CollectionConfig = {
       ]
     },
     {
+      name: 'startingWeight',
+      type: 'number',
+      admin: {
+        description: 'Starting weight when you began your journey (in lbs)'
+      }
+    },
+    {
+      name: 'goalWeight',
+      type: 'number',
+      admin: {
+        description: 'Target weight goal (in lbs)'
+      }
+    },
+    {
       name: 'goal',
       type: 'select',
       required: true,
