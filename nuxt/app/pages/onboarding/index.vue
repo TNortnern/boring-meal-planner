@@ -20,22 +20,53 @@ const stepTitles = [
 
 const handleComplete = async () => {
   // Save all onboarding data to user profile
+  // Map onboarding state to Payload Users schema
   if (user.value) {
     const result = await updateProfile({
       name: state.value.name,
-      email: state.value.email,
-      age: state.value.age || undefined,
       sex: state.value.sex,
-      height: getHeightCm(),
-      weight: getWeightKg(),
+      age: state.value.age || undefined,
+      // Height as group with value and unit (store in cm)
+      height: {
+        value: getHeightCm(),
+        unit: 'cm'
+      },
+      // Weight as group with value and unit (store in kg)
+      currentWeight: {
+        value: getWeightKg(),
+        unit: 'kg'
+      },
       goal: state.value.goal,
-      macroTargets: state.value.macroTargets || undefined,
+      aggression: state.value.aggression,
+      deadlineDate: state.value.deadlineDate || undefined,
+      liftingDaysPerWeek: state.value.liftingDays,
+      dailyStepsEstimate: state.value.dailySteps,
+      // Dietary restrictions as separate group with comma-separated strings
+      dietaryRestrictions: {
+        allergies: state.value.allergies.join(', '),
+        dietaryPattern: state.value.dietaryPattern,
+        excludedFoods: state.value.excludedFoods.join(', ')
+      },
+      // Preferences with correct fields
       preferences: {
-        boringMode: state.value.boringLevel === 'maximum_boring' || state.value.boringLevel === 'very_boring',
+        cookEverything: state.value.cookEverything,
+        repeatMeals: state.value.repeatMeals,
         mealsPerDay: state.value.mealsPerDay,
-        allergies: state.value.allergies,
-        dietaryPattern: state.value.dietaryPattern
-      }
+        cardioPreference: state.value.cardioPreference
+      },
+      // Macro targets with all fields
+      macroTargets: state.value.macroTargets
+        ? {
+            calories: state.value.macroTargets.calories,
+            protein: state.value.macroTargets.protein,
+            carbs: state.value.macroTargets.carbs,
+            fat: state.value.macroTargets.fat,
+            fiber: state.value.macroTargets.fiber,
+            water: state.value.macroTargets.water
+          }
+        : undefined,
+      // Boring mode as top-level boolean
+      boringMode: state.value.boringLevel === 'maximum_boring' || state.value.boringLevel === 'very_boring'
     })
 
     if (result.success) {

@@ -1,10 +1,20 @@
 <script setup lang="ts">
+const { user, updateProfile } = useAuth()
 const toast = useToast()
 const colorMode = useColorMode()
 
+// Parse comma-separated string to array
+const parseCommaList = (str: string | undefined): string[] => {
+  if (!str) return []
+  return str.split(',').map(s => s.trim()).filter(Boolean)
+}
+
 const preferences = reactive({
-  boringMode: true,
-  mealsPerDay: 3,
+  boringMode: user.value?.boringMode ?? true,
+  mealsPerDay: user.value?.preferences?.mealsPerDay ?? 3,
+  cookEverything: user.value?.preferences?.cookEverything ?? true,
+  repeatMeals: user.value?.preferences?.repeatMeals ?? true,
+  cardioPreference: user.value?.preferences?.cardioPreference ?? 'incline_walk',
   darkMode: colorMode.value === 'dark',
   notifications: true,
   weeklyReminders: true
@@ -20,8 +30,21 @@ watch(() => colorMode.value, (newValue) => {
   preferences.darkMode = newValue === 'dark'
 })
 
-const allergies = ref<string[]>([])
-const restrictions = ref<string[]>([])
+const allergies = ref<string[]>(parseCommaList(user.value?.dietaryRestrictions?.allergies))
+const dietaryPattern = ref<string>(user.value?.dietaryRestrictions?.dietaryPattern || 'none')
+
+// Update when user data loads
+watch(user, (newUser) => {
+  if (newUser) {
+    preferences.boringMode = newUser.boringMode ?? true
+    preferences.mealsPerDay = newUser.preferences?.mealsPerDay ?? 3
+    preferences.cookEverything = newUser.preferences?.cookEverything ?? true
+    preferences.repeatMeals = newUser.preferences?.repeatMeals ?? true
+    preferences.cardioPreference = newUser.preferences?.cardioPreference ?? 'incline_walk'
+    allergies.value = parseCommaList(newUser.dietaryRestrictions?.allergies)
+    dietaryPattern.value = newUser.dietaryRestrictions?.dietaryPattern || 'none'
+  }
+}, { immediate: true })
 
 const allergyOptions = [
   { value: 'dairy', label: 'Dairy' },
@@ -32,12 +55,13 @@ const allergyOptions = [
   { value: 'shellfish', label: 'Shellfish' }
 ]
 
-const restrictionOptions = [
+const dietaryPatternOptions = [
+  { value: 'none', label: 'None' },
   { value: 'vegetarian', label: 'Vegetarian' },
   { value: 'vegan', label: 'Vegan' },
-  { value: 'keto', label: 'Keto' },
   { value: 'halal', label: 'Halal' },
-  { value: 'kosher', label: 'Kosher' }
+  { value: 'kosher', label: 'Kosher' },
+  { value: 'pescatarian', label: 'Pescatarian' }
 ]
 
 function toggleAllergy(allergy: string) {
@@ -49,22 +73,40 @@ function toggleAllergy(allergy: string) {
   }
 }
 
-function toggleRestriction(restriction: string) {
-  const index = restrictions.value.indexOf(restriction)
-  if (index === -1) {
-    restrictions.value.push(restriction)
-  } else {
-    restrictions.value.splice(index, 1)
-  }
+function selectDietaryPattern(pattern: string) {
+  dietaryPattern.value = dietaryPattern.value === pattern ? 'none' : pattern
 }
 
-function saveSettings() {
-  toast.add({
-    title: 'Preferences Updated',
-    description: 'Your preferences have been saved.',
-    icon: 'i-lucide-check',
-    color: 'success'
+async function saveSettings() {
+  const result = await updateProfile({
+    boringMode: preferences.boringMode,
+    preferences: {
+      mealsPerDay: preferences.mealsPerDay,
+      cookEverything: preferences.cookEverything,
+      repeatMeals: preferences.repeatMeals,
+      cardioPreference: preferences.cardioPreference as 'incline_walk' | 'bike' | 'none'
+    },
+    dietaryRestrictions: {
+      allergies: allergies.value.join(', '),
+      dietaryPattern: dietaryPattern.value as 'none' | 'halal' | 'kosher' | 'vegetarian' | 'pescatarian' | 'vegan'
+    }
   })
+
+  if (result.success) {
+    toast.add({
+      title: 'Preferences Updated',
+      description: 'Your preferences have been saved.',
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+  } else {
+    toast.add({
+      title: 'Error',
+      description: result.error || 'Failed to save preferences',
+      icon: 'i-lucide-x',
+      color: 'error'
+    })
+  }
 }
 </script>
 
@@ -160,18 +202,18 @@ function saveSettings() {
 
         <div>
           <h4 class="font-medium mb-3">
-            Dietary Restrictions
+            Dietary Pattern
           </h4>
           <div class="flex flex-wrap gap-2">
             <UButton
-              v-for="restriction in restrictionOptions"
-              :key="restriction.value"
-              :variant="restrictions.includes(restriction.value) ? 'solid' : 'outline'"
-              :color="restrictions.includes(restriction.value) ? 'primary' : 'neutral'"
+              v-for="pattern in dietaryPatternOptions"
+              :key="pattern.value"
+              :variant="dietaryPattern === pattern.value ? 'solid' : 'outline'"
+              :color="dietaryPattern === pattern.value ? 'primary' : 'neutral'"
               size="sm"
-              @click="toggleRestriction(restriction.value)"
+              @click="selectDietaryPattern(pattern.value)"
             >
-              {{ restriction.label }}
+              {{ pattern.label }}
             </UButton>
           </div>
         </div>

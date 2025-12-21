@@ -2,21 +2,39 @@
 import { useMacroCalculator } from '~/composables/useMacroCalculator'
 
 const { calculateMacros } = useMacroCalculator()
-
+const { user, updateProfile } = useAuth()
 const toast = useToast()
 
-// User stats (would come from profile in real app)
-const userStats = ref({
-  sex: 'male' as const,
-  age: 28,
-  heightCm: 178,
-  weightKg: 82.5,
-  liftingDays: 4,
-  dailySteps: 8000
-})
+// User stats derived from profile
+const userStats = computed(() => ({
+  sex: (user.value?.sex || 'male') as 'male' | 'female',
+  age: user.value?.age || 28,
+  heightCm: user.value?.height?.value || 178,
+  weightKg: user.value?.currentWeight?.value || 82.5,
+  liftingDays: user.value?.liftingDaysPerWeek || 4,
+  dailySteps: user.value?.dailyStepsEstimate || 8000
+}))
 
-const goal = ref<'cut' | 'maintain' | 'gain'>('cut')
-const aggression = ref<'safe' | 'aggressive'>('safe')
+const goal = ref<'cut' | 'maintain' | 'gain'>(user.value?.goal || 'cut')
+const aggression = ref<'safe' | 'aggressive'>(user.value?.aggression || 'safe')
+
+// Update when user data loads
+watch(user, (newUser) => {
+  if (newUser) {
+    goal.value = newUser.goal || 'cut'
+    aggression.value = newUser.aggression || 'safe'
+    // Load custom macros from user if they have them saved
+    if (newUser.macroTargets?.calories) {
+      useCustomMacros.value = true
+      customMacros.value = {
+        calories: newUser.macroTargets.calories,
+        protein: newUser.macroTargets.protein || 180,
+        carbs: newUser.macroTargets.carbs || 200,
+        fat: newUser.macroTargets.fat || 70
+      }
+    }
+  }
+}, { immediate: true })
 
 const calculatedMacros = computed(() => {
   return calculateMacros({
@@ -34,7 +52,7 @@ const customMacros = ref({
   fat: 70
 })
 
-const _activeMacros = computed(() => {
+const activeMacros = computed(() => {
   return useCustomMacros.value ? customMacros.value : calculatedMacros.value
 })
 
@@ -44,13 +62,37 @@ const goalOptions = [
   { value: 'gain', label: 'Gain', description: 'Build muscle with minimal fat' }
 ]
 
-function saveSettings() {
-  toast.add({
-    title: 'Macros Updated',
-    description: 'Your macro targets have been saved.',
-    icon: 'i-lucide-check',
-    color: 'success'
+async function saveSettings() {
+  const macros = activeMacros.value
+
+  const result = await updateProfile({
+    goal: goal.value,
+    aggression: aggression.value,
+    macroTargets: {
+      calories: macros.calories,
+      protein: macros.protein,
+      carbs: macros.carbs,
+      fat: macros.fat,
+      fiber: calculatedMacros.value.fiber,
+      water: calculatedMacros.value.water
+    }
   })
+
+  if (result.success) {
+    toast.add({
+      title: 'Macros Updated',
+      description: 'Your macro targets have been saved.',
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+  } else {
+    toast.add({
+      title: 'Error',
+      description: result.error || 'Failed to save macros',
+      icon: 'i-lucide-x',
+      color: 'error'
+    })
+  }
 }
 </script>
 

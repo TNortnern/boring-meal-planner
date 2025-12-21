@@ -1,27 +1,45 @@
 import { createSharedComposable, useLocalStorage } from '@vueuse/core'
 
+// User interface matching Payload Users collection schema
 export interface User {
   id: string
   email: string
   name?: string
-  age?: number
   sex?: 'male' | 'female' | 'unspecified'
-  height?: number
-  weight?: number
+  age?: number
+  height?: {
+    value?: number
+    unit?: 'cm' | 'in'
+  }
+  currentWeight?: {
+    value?: number
+    unit?: 'kg' | 'lbs'
+  }
   goal?: 'cut' | 'maintain' | 'gain'
-  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
-  macroTargets?: {
-    calories: number
-    protein: number
-    carbs: number
-    fat: number
+  liftingDaysPerWeek?: number
+  dailyStepsEstimate?: number
+  aggression?: 'safe' | 'aggressive'
+  deadlineDate?: string
+  dietaryRestrictions?: {
+    allergies?: string // comma-separated
+    dietaryPattern?: 'none' | 'halal' | 'kosher' | 'vegetarian' | 'pescatarian' | 'vegan'
+    excludedFoods?: string // comma-separated
   }
   preferences?: {
-    boringMode: boolean
-    mealsPerDay: number
-    allergies: string[]
-    dietaryPattern: string
+    cookEverything?: boolean
+    repeatMeals?: boolean
+    mealsPerDay?: number
+    cardioPreference?: 'incline_walk' | 'bike' | 'none'
   }
+  macroTargets?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+    fiber?: number
+    water?: number
+  }
+  boringMode?: boolean
 }
 
 const _useAuth = () => {

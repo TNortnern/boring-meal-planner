@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { logout } = useAuth()
 const toast = useToast()
 
 const changePasswordOpen = ref(false)
@@ -42,11 +43,14 @@ function exportData() {
   })
 }
 
-function signOut() {
-  navigateTo('/onboarding')
+async function signOut() {
+  await logout()
+  navigateTo('/login')
 }
 
-function deleteAccount() {
+async function deleteAccount() {
+  // TODO: Add actual delete account API call when implemented
+  await logout()
   toast.add({
     title: 'Account Deleted',
     description: 'Your account has been permanently deleted.',
@@ -54,7 +58,7 @@ function deleteAccount() {
     color: 'error'
   })
   deleteAccountOpen.value = false
-  navigateTo('/onboarding')
+  navigateTo('/login')
 }
 </script>
 

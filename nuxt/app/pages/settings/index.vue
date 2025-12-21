@@ -2,6 +2,9 @@
 import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 
+const { user, updateProfile } = useAuth()
+const toast = useToast()
+
 const profileSchema = z.object({
   name: z.string().min(2, 'Too short'),
   email: z.string().email('Invalid email'),
@@ -17,28 +20,84 @@ const profileSchema = z.object({
 
 type ProfileSchema = z.output<typeof profileSchema>
 
+// Convert cm to feet/inches for display
+const cmToFeetInches = (cm: number | undefined): { feet: number, inches: number } => {
+  if (!cm) return { feet: 5, inches: 8 }
+  const totalInches = cm / 2.54
+  const feet = Math.floor(totalInches / 12)
+  const inches = Math.round(totalInches % 12)
+  return { feet, inches }
+}
+
+// Convert kg to lbs for display
+const kgToLbs = (kg: number | undefined): number => {
+  if (!kg) return 150
+  return Math.round(kg * 2.20462)
+}
+
+// Initialize from user data
+const heightDisplay = computed(() => cmToFeetInches(user.value?.height?.value))
+
 const profile = reactive<Partial<ProfileSchema>>({
-  name: 'Alex Johnson',
-  email: 'alex@example.com',
-  sex: 'male',
-  age: 28,
-  heightFeet: 5,
-  heightInches: 10,
-  weightLbs: 182,
-  liftingDays: 4,
-  dailySteps: 8000,
+  name: user.value?.name || '',
+  email: user.value?.email || '',
+  sex: user.value?.sex || 'unspecified',
+  age: user.value?.age || 30,
+  heightFeet: heightDisplay.value.feet,
+  heightInches: heightDisplay.value.inches,
+  weightLbs: kgToLbs(user.value?.currentWeight?.value),
+  liftingDays: user.value?.liftingDaysPerWeek || 4,
+  dailySteps: user.value?.dailyStepsEstimate || 8000,
   cardioMinutes: 20
 })
 
-const toast = useToast()
+// Update profile when user data loads
+watch(user, (newUser) => {
+  if (newUser) {
+    const ht = cmToFeetInches(newUser.height?.value)
+    profile.name = newUser.name || ''
+    profile.email = newUser.email || ''
+    profile.sex = newUser.sex || 'unspecified'
+    profile.age = newUser.age || 30
+    profile.heightFeet = ht.feet
+    profile.heightInches = ht.inches
+    profile.weightLbs = kgToLbs(newUser.currentWeight?.value)
+    profile.liftingDays = newUser.liftingDaysPerWeek || 4
+    profile.dailySteps = newUser.dailyStepsEstimate || 8000
+  }
+}, { immediate: true })
 
 async function onSubmit(_event: FormSubmitEvent<ProfileSchema>) {
-  toast.add({
-    title: 'Profile Updated',
-    description: 'Your profile settings have been saved.',
-    icon: 'i-lucide-check',
-    color: 'success'
+  // Convert feet/inches to cm
+  const heightCm = ((profile.heightFeet || 5) * 12 + (profile.heightInches || 0)) * 2.54
+  // Convert lbs to kg
+  const weightKg = (profile.weightLbs || 150) * 0.453592
+
+  const result = await updateProfile({
+    name: profile.name,
+    sex: profile.sex,
+    age: profile.age,
+    height: { value: heightCm, unit: 'cm' },
+    currentWeight: { value: weightKg, unit: 'kg' },
+    liftingDaysPerWeek: profile.liftingDays,
+    dailyStepsEstimate: profile.dailySteps
   })
+
+  if (result.success) {
+    toast.add({
+      title: 'Profile Updated',
+      description: 'Your profile settings have been saved.',
+      icon: 'i-lucide-check',
+      color: 'success'
+    })
+  } else {
+    toast.add({
+      title: 'Error',
+      description: result.error || 'Failed to save profile',
+      icon: 'i-lucide-x',
+      color: 'error'
+    })
+  }
 }
 
 const sexOptions = [
