@@ -1,21 +1,53 @@
 <script setup lang="ts">
 const toast = useToast()
 
+// Local workout state (session management)
 const {
   boringMode,
-  currentPlan,
+  currentPlan: localPlan,
   currentSession,
   workoutStats,
-  startWorkout,
+  startWorkout: startLocalWorkout,
   completeSet,
-  endWorkout,
-  cancelWorkout,
-  updateExerciseTarget,
-  addExercise,
-  createWorkoutPlan
+  endWorkout: endLocalWorkout,
+  cancelWorkout: cancelLocalWorkout,
+  updateExerciseTarget: updateLocalExercise,
+  addExercise: addLocalExercise,
+  createWorkoutPlan: createLocalPlan
 } = useWorkouts()
 
+// API-backed composables
+const { isAuthenticated } = useAuth()
+const progressLogs = useProgressLogs()
+const workoutPlansApi = useWorkoutPlans()
+
 const { exercises: exerciseLibrary } = useExerciseData()
+
+// Use API plan if available, otherwise fallback to local
+const currentPlan = computed(() => {
+  const apiPlan = workoutPlansApi.activePlan.value
+  if (apiPlan) {
+    return {
+      name: apiPlan.name,
+      type: apiPlan.splitType,
+      daysPerWeek: apiPlan.daysPerWeek,
+      currentWeek: 1,
+      days: apiPlan.workouts.map(w => ({
+        name: w.dayName,
+        focus: w.dayOfWeek || '',
+        exercises: w.exercises.map(e => ({
+          name: typeof e.exercise === 'object' ? (e.exercise as { name: string }).name : `Exercise ${e.exercise}`,
+          sets: e.sets,
+          reps: e.reps,
+          targetWeight: 0,
+          videoUrl: undefined,
+          instructions: e.notes || undefined
+        }))
+      }))
+    }
+  }
+  return localPlan.value
+})
 
 const _activeTab = ref('current')
 
@@ -72,14 +104,48 @@ const openEditExercise = (dayIndex: number, exerciseIndex: number) => {
   editExerciseOpen.value = true
 }
 
-const saveExercise = () => {
+const isSavingExercise = ref(false)
+const saveExercise = async () => {
   if (!editingExercise.value) return
-  updateExerciseTarget(
-    editingExercise.value.dayIndex,
-    editingExercise.value.exerciseIndex,
-    editingExerciseData.value
-  )
-  editExerciseOpen.value = false
+
+  isSavingExercise.value = true
+
+  try {
+    // Update local state
+    updateLocalExercise(
+      editingExercise.value.dayIndex,
+      editingExercise.value.exerciseIndex,
+      editingExerciseData.value
+    )
+
+    // Also save to API if we have an active plan
+    if (workoutPlansApi.activePlan.value) {
+      await workoutPlansApi.updateExercise(
+        editingExercise.value.dayIndex,
+        editingExercise.value.exerciseIndex,
+        {
+          sets: editingExerciseData.value.sets,
+          reps: editingExerciseData.value.reps,
+          notes: editingExerciseData.value.instructions
+        }
+      )
+    }
+
+    toast.add({
+      title: 'Exercise Updated',
+      description: 'Changes saved successfully',
+      color: 'success'
+    })
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to save changes',
+      color: 'error'
+    })
+  } finally {
+    isSavingExercise.value = false
+    editExerciseOpen.value = false
+  }
 }
 
 const getExerciseToEdit = computed(() => {
@@ -94,7 +160,7 @@ const activeWorkoutOpen = ref(false)
 const workingSetData = ref<{ [key: string]: { [setNum: number]: { reps: number, weight: number } } }>({})
 
 const startActiveWorkout = () => {
-  startWorkout(selectedDayIndex.value)
+  startLocalWorkout(selectedDayIndex.value)
   workingSetData.value = {}
   activeWorkoutOpen.value = true
 }
@@ -126,25 +192,42 @@ const getSetsCompleted = (exerciseName: string, totalSets: number) => {
   return completed
 }
 
-const finishWorkout = () => {
+const isFinishingWorkout = ref(false)
+const finishWorkout = async () => {
   if (!currentSession.value) return
 
   const totalSets = currentSession.value.exercises.length
   const completedSets = currentSession.value.exercises.filter(e => e.completed).length
 
-  endWorkout()
-  activeWorkoutOpen.value = false
-  workingSetData.value = {}
+  isFinishingWorkout.value = true
 
-  toast.add({
-    title: 'Workout Complete',
-    description: `Great work! You completed ${completedSets} of ${totalSets} sets.`,
-    color: 'success'
-  })
+  try {
+    // End local session
+    endLocalWorkout()
+
+    // Mark workout as completed in progress log
+    await progressLogs.markWorkoutCompleted(true)
+
+    toast.add({
+      title: 'Workout Complete',
+      description: `Great work! You completed ${completedSets} of ${totalSets} sets.`,
+      color: 'success'
+    })
+  } catch {
+    toast.add({
+      title: 'Warning',
+      description: 'Workout completed but failed to sync with server',
+      color: 'warning'
+    })
+  } finally {
+    isFinishingWorkout.value = false
+    activeWorkoutOpen.value = false
+    workingSetData.value = {}
+  }
 }
 
 const cancelActiveWorkout = () => {
-  cancelWorkout()
+  cancelLocalWorkout()
   activeWorkoutOpen.value = false
   workingSetData.value = {}
 }
@@ -196,7 +279,8 @@ const openAddExercise = () => {
   addExerciseOpen.value = true
 }
 
-const saveNewExercise = () => {
+const isSavingNewExercise = ref(false)
+const saveNewExercise = async () => {
   if (!newExerciseData.value.name) {
     toast.add({
       title: 'Error',
@@ -206,22 +290,45 @@ const saveNewExercise = () => {
     return
   }
 
-  addExercise(selectedDayIndex.value, {
-    name: newExerciseData.value.name,
-    sets: newExerciseData.value.sets,
-    reps: newExerciseData.value.reps,
-    targetWeight: newExerciseData.value.targetWeight,
-    videoUrl: newExerciseData.value.videoUrl || undefined,
-    instructions: newExerciseData.value.instructions || undefined
-  })
+  isSavingNewExercise.value = true
 
-  toast.add({
-    title: 'Exercise Added',
-    description: `${newExerciseData.value.name} added to ${currentDay.value?.name || 'workout'}`,
-    color: 'success'
-  })
+  try {
+    // Add to local state
+    addLocalExercise(selectedDayIndex.value, {
+      name: newExerciseData.value.name,
+      sets: newExerciseData.value.sets,
+      reps: newExerciseData.value.reps,
+      targetWeight: newExerciseData.value.targetWeight,
+      videoUrl: newExerciseData.value.videoUrl || undefined,
+      instructions: newExerciseData.value.instructions || undefined
+    })
 
-  addExerciseOpen.value = false
+    // Also save to API if authenticated
+    if (workoutPlansApi.activePlan.value) {
+      const exerciseFromLibrary = exerciseLibrary.find(e => e.name === newExerciseData.value.name)
+      await workoutPlansApi.addExercise(selectedDayIndex.value, {
+        exercise: exerciseFromLibrary?.id || newExerciseData.value.name,
+        sets: newExerciseData.value.sets,
+        reps: newExerciseData.value.reps,
+        notes: newExerciseData.value.instructions
+      })
+    }
+
+    toast.add({
+      title: 'Exercise Added',
+      description: `${newExerciseData.value.name} added to ${currentDay.value?.name || 'workout'}`,
+      color: 'success'
+    })
+  } catch {
+    toast.add({
+      title: 'Warning',
+      description: 'Exercise added locally but failed to sync with server',
+      color: 'warning'
+    })
+  } finally {
+    isSavingNewExercise.value = false
+    addExerciseOpen.value = false
+  }
 }
 
 const exerciseOptions = computed(() => {
@@ -249,21 +356,80 @@ const autoFillFromLibrary = () => {
   }
 }
 
-const handleCreatePlan = () => {
+const isCreatingPlan = ref(false)
+const handleCreatePlan = async () => {
   if (!newPlanType.value) return
 
-  createWorkoutPlan(newPlanType.value as 'ppl' | 'upper_lower' | 'full_body' | 'bro_split')
+  isCreatingPlan.value = true
 
-  toast.add({
-    title: 'Workout Plan Created',
-    description: `Your ${splitTypes.find(s => s.value === newPlanType.value)?.label} plan is ready!`,
-    color: 'success'
-  })
+  try {
+    // Create local plan first
+    createLocalPlan(newPlanType.value as 'ppl' | 'upper_lower' | 'full_body' | 'bro_split')
 
-  createNewPlanOpen.value = false
-  newPlanType.value = null
-  selectedDayIndex.value = 0
+    // Also save to API if authenticated
+    if (isAuthenticated.value) {
+      const splitInfo = splitTypes.find(s => s.value === newPlanType.value)
+      const localCreatedPlan = localPlan.value
+
+      await workoutPlansApi.createPlan({
+        name: localCreatedPlan.name,
+        splitType: newPlanType.value as 'ppl' | 'upper_lower' | 'full_body' | 'bro_split',
+        daysPerWeek: splitInfo?.days || 4,
+        goal: 'maintain',
+        workouts: localCreatedPlan.days.map((day, idx) => ({
+          dayName: day.name,
+          dayOfWeek: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][idx % 7] as 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday',
+          exercises: day.exercises.map((ex) => {
+            const exerciseFromLibrary = exerciseLibrary.find(e => e.name === ex.name)
+            return {
+              exercise: exerciseFromLibrary?.id || ex.name,
+              sets: ex.sets,
+              reps: ex.reps,
+              notes: ex.instructions
+            }
+          })
+        }))
+      })
+    }
+
+    toast.add({
+      title: 'Workout Plan Created',
+      description: `Your ${splitTypes.find(s => s.value === newPlanType.value)?.label} plan is ready!`,
+      color: 'success'
+    })
+  } catch {
+    toast.add({
+      title: 'Warning',
+      description: 'Plan created locally but failed to sync with server',
+      color: 'warning'
+    })
+  } finally {
+    isCreatingPlan.value = false
+    createNewPlanOpen.value = false
+    newPlanType.value = null
+    selectedDayIndex.value = 0
+  }
 }
+
+// Initialize API data on mount
+onMounted(async () => {
+  if (isAuthenticated.value) {
+    await Promise.all([
+      progressLogs.init(),
+      workoutPlansApi.init()
+    ])
+  }
+})
+
+// Watch for auth changes
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    await Promise.all([
+      progressLogs.init(),
+      workoutPlansApi.init()
+    ])
+  }
+})
 </script>
 
 <template>
@@ -572,7 +738,7 @@ const handleCreatePlan = () => {
               <UButton variant="ghost" color="neutral" @click="cancelActiveWorkout">
                 Cancel Workout
               </UButton>
-              <UButton @click="finishWorkout">
+              <UButton :loading="isFinishingWorkout" @click="finishWorkout">
                 Finish Workout
               </UButton>
             </div>
@@ -637,7 +803,7 @@ const handleCreatePlan = () => {
               <UButton variant="ghost" color="neutral" @click="createNewPlanOpen = false">
                 Cancel
               </UButton>
-              <UButton :disabled="!newPlanType" @click="handleCreatePlan">
+              <UButton :disabled="!newPlanType" :loading="isCreatingPlan" @click="handleCreatePlan">
                 Create Plan
               </UButton>
             </div>
@@ -719,7 +885,7 @@ const handleCreatePlan = () => {
               <UButton variant="ghost" color="neutral" @click="editExerciseOpen = false">
                 Cancel
               </UButton>
-              <UButton @click="saveExercise">
+              <UButton :loading="isSavingExercise" @click="saveExercise">
                 Save Changes
               </UButton>
             </div>
@@ -817,7 +983,7 @@ const handleCreatePlan = () => {
               <UButton variant="ghost" color="neutral" @click="addExerciseOpen = false">
                 Cancel
               </UButton>
-              <UButton @click="saveNewExercise">
+              <UButton :loading="isSavingNewExercise" @click="saveNewExercise">
                 Add Exercise
               </UButton>
             </div>

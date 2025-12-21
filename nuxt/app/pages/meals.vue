@@ -3,10 +3,24 @@ import { format, addDays, startOfWeek } from 'date-fns'
 import { useMacroCalculator } from '~/composables/useMacroCalculator'
 import { useMealPlanGenerator } from '~/composables/useMealPlanGenerator'
 import type { UserStats } from '~/composables/useMacroCalculator'
+import type { MealSlot } from '~/composables/useMealPlans'
 
+const toast = useToast()
 const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
 
+// API-backed composables
+const { isAuthenticated } = useAuth()
+const progressLogs = useProgressLogs()
+const mealPlansApi = useMealPlans()
+
 const rotationType = ref<'same_daily' | 'ab_rotation'>('same_daily')
+
+// Sync rotation type with API plan
+watch(() => mealPlansApi.activePlan.value?.rotationType, (apiRotation) => {
+  if (apiRotation) {
+    rotationType.value = apiRotation === 'ab_rotation' ? 'ab_rotation' : 'same_daily'
+  }
+}, { immediate: true })
 
 const days = computed(() => {
   return Array.from({ length: 7 }, (_, i) => {
@@ -38,14 +52,14 @@ const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
 const { calculateMacros } = useMacroCalculator()
 const macroTargets = computed(() => calculateMacros(userStatsStorage.value))
 
-// Generate meal plan based on macro targets
+// Generate meal plan based on macro targets (fallback)
 const { generateMealPlan } = useMealPlanGenerator()
-const mealPlan = ref(generateMealPlan(macroTargets.value))
+const generatedMealPlan = ref(generateMealPlan(macroTargets.value))
 
 // Regenerate meal plan when user stats change
 watch(userStatsStorage, (newStats) => {
   const newTargets = calculateMacros(newStats)
-  mealPlan.value = generateMealPlan(newTargets)
+  generatedMealPlan.value = generateMealPlan(newTargets)
 }, { deep: true })
 
 const expandedMealSlot = ref<string | null>(null)
@@ -54,26 +68,99 @@ const toggleMealExpanded = (slot: string) => {
   expandedMealSlot.value = expandedMealSlot.value === slot ? null : slot
 }
 
+// Get meals for a specific day - use API if available, fallback to generated
 const getMealsForDay = (dayIndex: number) => {
-  if (rotationType.value === 'same_daily') {
-    return mealPlan.value.dayA
+  const apiPlan = mealPlansApi.activePlan.value
+
+  if (apiPlan) {
+    if (rotationType.value === 'same_daily') {
+      return apiPlan.dayA?.meals || []
+    }
+    return dayIndex % 2 === 0
+      ? apiPlan.dayA?.meals || []
+      : apiPlan.dayB?.meals || []
   }
-  return dayIndex % 2 === 0 ? mealPlan.value.dayA : mealPlan.value.dayB
+
+  // Fallback to generated plan
+  if (rotationType.value === 'same_daily') {
+    return generatedMealPlan.value.dayA
+  }
+  return dayIndex % 2 === 0 ? generatedMealPlan.value.dayA : generatedMealPlan.value.dayB
+}
+
+// Format meal for display
+interface DisplayMeal {
+  slot: string
+  slotKey: string
+  recipe: string
+  macros: { calories: number, protein: number, carbs: number, fat: number }
+  ingredients: Array<{ name: string, amount: string, macros?: { protein: number, carbs: number, fat: number } }>
+  instructions: string
+  recipeId?: number
+  eaten: boolean
+}
+
+const getFormattedMealsForDay = (dayIndex: number): DisplayMeal[] => {
+  const meals = getMealsForDay(dayIndex)
+  const isApiPlan = !!mealPlansApi.activePlan.value
+
+  if (isApiPlan) {
+    return (meals as MealSlot[]).map((meal, index) => {
+      const recipe = typeof meal.recipe === 'object' ? meal.recipe : null
+      const slotKey = meal.slot
+      const todayLog = progressLogs.getTodayLog.value
+      const mealEaten = todayLog?.mealsEaten?.find(m => m.slot === slotKey)
+
+      return {
+        slot: slotKey.replace('meal_', 'Meal '),
+        slotKey,
+        recipe: recipe?.name || `Meal ${index + 1}`,
+        macros: {
+          calories: recipe?.macros?.calories || 0,
+          protein: recipe?.macros?.protein || 0,
+          carbs: 0,
+          fat: 0
+        },
+        ingredients: [],
+        instructions: '',
+        recipeId: typeof meal.recipe === 'number' ? meal.recipe : recipe?.id,
+        eaten: mealEaten?.eaten || false
+      }
+    })
+  }
+
+  // Fallback format from generated plan
+  return (meals as typeof generatedMealPlan.value['dayA']).map((meal, index) => {
+    const slotKey = `meal_${index + 1}`
+    const mealCarbs = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0
+    const mealFat = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0
+    const todayLog = progressLogs.getTodayLog.value
+    const mealEaten = todayLog?.mealsEaten?.find(m => m.slot === slotKey)
+
+    return {
+      slot: meal.slot,
+      slotKey,
+      recipe: meal.recipe,
+      macros: {
+        calories: meal.macros.calories,
+        protein: meal.macros.protein,
+        carbs: mealCarbs,
+        fat: mealFat
+      },
+      ingredients: meal.ingredients || [],
+      instructions: meal.instructions,
+      eaten: mealEaten?.eaten || false
+    }
+  })
 }
 
 const totalDailyMacros = computed(() => {
-  const meals = mealPlan.value.dayA
+  const meals = getFormattedMealsForDay(selectedDay.value)
   return {
     calories: meals.reduce((sum, m) => sum + m.macros.calories, 0),
     protein: meals.reduce((sum, m) => sum + m.macros.protein, 0),
-    carbs: meals.reduce((sum, m) => {
-      const ingredientCarbs = m.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0
-      return sum + ingredientCarbs
-    }, 0),
-    fat: meals.reduce((sum, m) => {
-      const ingredientFat = m.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0
-      return sum + ingredientFat
-    }, 0)
+    carbs: meals.reduce((sum, m) => sum + m.macros.carbs, 0),
+    fat: meals.reduce((sum, m) => sum + m.macros.fat, 0)
   }
 })
 
@@ -83,34 +170,53 @@ const currentDay = computed(() => days.value[selectedDay.value])
 
 const shoppingListOpen = ref(false)
 
-// Mock shopping list with categories
-const shoppingList = ref([
-  { ingredient: 'Chicken Breast', amount: '2.5', unit: 'lbs', category: 'Proteins', purchased: false },
-  { ingredient: 'Ground Turkey', amount: '1.5', unit: 'lbs', category: 'Proteins', purchased: false },
-  { ingredient: 'Lean Ground Beef', amount: '1', unit: 'lb', category: 'Proteins', purchased: false },
-  { ingredient: 'Eggs', amount: '1', unit: 'dozen', category: 'Proteins', purchased: false },
-  { ingredient: 'White Rice', amount: '3', unit: 'cups', category: 'Carbs', purchased: false },
-  { ingredient: 'Potatoes', amount: '4', unit: 'lbs', category: 'Carbs', purchased: false },
-  { ingredient: 'Broccoli', amount: '2', unit: 'heads', category: 'Vegetables', purchased: false },
-  { ingredient: 'Mixed Vegetables', amount: '2', unit: 'bags', category: 'Vegetables', purchased: false },
-  { ingredient: 'Olive Oil', amount: '1', unit: 'bottle', category: 'Fats & Oils', purchased: false }
-])
+// Shopping list from API or fallback
+const shoppingList = computed(() => {
+  const apiList = mealPlansApi.activePlan.value?.shoppingList
+  if (apiList && apiList.length > 0) {
+    return apiList.map(item => ({
+      ingredient: typeof item.ingredient === 'object' ? (item.ingredient as { name: string }).name : `Item ${item.ingredient}`,
+      amount: String(item.totalAmount || 1),
+      unit: item.unit || 'unit',
+      category: 'Groceries',
+      purchased: false
+    }))
+  }
+
+  // Fallback mock data
+  return [
+    { ingredient: 'Chicken Breast', amount: '2.5', unit: 'lbs', category: 'Proteins', purchased: false },
+    { ingredient: 'Ground Turkey', amount: '1.5', unit: 'lbs', category: 'Proteins', purchased: false },
+    { ingredient: 'Lean Ground Beef', amount: '1', unit: 'lb', category: 'Proteins', purchased: false },
+    { ingredient: 'Eggs', amount: '1', unit: 'dozen', category: 'Proteins', purchased: false },
+    { ingredient: 'White Rice', amount: '3', unit: 'cups', category: 'Carbs', purchased: false },
+    { ingredient: 'Potatoes', amount: '4', unit: 'lbs', category: 'Carbs', purchased: false },
+    { ingredient: 'Broccoli', amount: '2', unit: 'heads', category: 'Vegetables', purchased: false },
+    { ingredient: 'Mixed Vegetables', amount: '2', unit: 'bags', category: 'Vegetables', purchased: false },
+    { ingredient: 'Olive Oil', amount: '1', unit: 'bottle', category: 'Fats & Oils', purchased: false }
+  ]
+})
+
+// Track purchased items locally
+const purchasedItems = ref<Set<string>>(new Set())
 
 const groupedShoppingList = computed(() => {
   const groups: Record<string, typeof shoppingList.value> = {}
   shoppingList.value.forEach((item) => {
+    const itemWithPurchased = { ...item, purchased: purchasedItems.value.has(item.ingredient) }
     if (!groups[item.category]) {
       groups[item.category] = []
     }
-    groups[item.category]!.push(item)
+    groups[item.category]!.push(itemWithPurchased)
   })
   return groups
 })
 
 const togglePurchased = (ingredient: string) => {
-  const item = shoppingList.value.find(i => i.ingredient === ingredient)
-  if (item) {
-    item.purchased = !item.purchased
+  if (purchasedItems.value.has(ingredient)) {
+    purchasedItems.value.delete(ingredient)
+  } else {
+    purchasedItems.value.add(ingredient)
   }
 }
 
@@ -118,7 +224,7 @@ const copyShoppingList = async () => {
   const text = Object.entries(groupedShoppingList.value)
     .map(([category, items]) => {
       const itemList = items
-        .map(item => `  • ${item.ingredient} - ${item.amount} ${item.unit}`)
+        .map(item => `  - ${item.ingredient} - ${item.amount} ${item.unit}`)
         .join('\n')
       return `${category}:\n${itemList}`
     })
@@ -126,11 +232,101 @@ const copyShoppingList = async () => {
 
   try {
     await navigator.clipboard.writeText(text)
-    // You could add a toast notification here
-  } catch (err) {
-    console.error('Failed to copy:', err)
+    toast.add({ title: 'Copied', description: 'Shopping list copied to clipboard', color: 'success' })
+  } catch {
+    toast.add({ title: 'Error', description: 'Failed to copy shopping list', color: 'error' })
   }
 }
+
+// Toggle meal eaten - saves to API
+const isTogglingMeal = ref<string | null>(null)
+const toggleMealEaten = async (meal: DisplayMeal) => {
+  isTogglingMeal.value = meal.slotKey
+  const newEatenState = !meal.eaten
+
+  try {
+    const result = await progressLogs.markMealEaten(
+      meal.slotKey,
+      newEatenState,
+      meal.recipeId
+    )
+
+    if (!result.success) {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to update meal status',
+        color: 'error'
+      })
+    }
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to save meal status',
+      color: 'error'
+    })
+  } finally {
+    isTogglingMeal.value = null
+  }
+}
+
+// Swap meal modal
+const swapMealModalOpen = ref(false)
+const swappingMeal = ref<DisplayMeal | null>(null)
+const swappingMealIndex = ref<number>(0)
+
+const openSwapMealModal = (meal: DisplayMeal, index: number) => {
+  swappingMeal.value = meal
+  swappingMealIndex.value = index
+  swapMealModalOpen.value = true
+}
+
+// Edit meal modal
+const editMealModalOpen = ref(false)
+const editingMeal = ref<DisplayMeal | null>(null)
+const editingMealIndex = ref<number>(0)
+
+const openEditMealModal = (meal: DisplayMeal, index: number) => {
+  editingMeal.value = meal
+  editingMealIndex.value = index
+  editMealModalOpen.value = true
+}
+
+// Save rotation type to API
+const isSavingRotation = ref(false)
+const updateRotationType = async (newType: 'same_daily' | 'ab_rotation') => {
+  rotationType.value = newType
+
+  if (mealPlansApi.activePlan.value) {
+    isSavingRotation.value = true
+    try {
+      await mealPlansApi.updatePlan(mealPlansApi.activePlan.value.id, { rotationType: newType })
+    } catch {
+      toast.add({ title: 'Error', description: 'Failed to save rotation type', color: 'error' })
+    } finally {
+      isSavingRotation.value = false
+    }
+  }
+}
+
+// Initialize API data on mount
+onMounted(async () => {
+  if (isAuthenticated.value) {
+    await Promise.all([
+      progressLogs.init(),
+      mealPlansApi.init()
+    ])
+  }
+})
+
+// Watch for auth changes
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    await Promise.all([
+      progressLogs.init(),
+      mealPlansApi.init()
+    ])
+  }
+})
 </script>
 
 <template>
@@ -172,7 +368,8 @@ const copyShoppingList = async () => {
               :variant="rotationType === 'same_daily' ? 'solid' : 'outline'"
               :color="rotationType === 'same_daily' ? 'primary' : 'neutral'"
               size="sm"
-              @click="rotationType = 'same_daily'"
+              :loading="isSavingRotation && rotationType !== 'same_daily'"
+              @click="updateRotationType('same_daily')"
             >
               Same Daily
             </UButton>
@@ -180,7 +377,8 @@ const copyShoppingList = async () => {
               :variant="rotationType === 'ab_rotation' ? 'solid' : 'outline'"
               :color="rotationType === 'ab_rotation' ? 'primary' : 'neutral'"
               size="sm"
-              @click="rotationType = 'ab_rotation'"
+              :loading="isSavingRotation && rotationType !== 'ab_rotation'"
+              @click="updateRotationType('ab_rotation')"
             >
               A/B Rotation
             </UButton>
@@ -243,21 +441,42 @@ const copyShoppingList = async () => {
 
           <div class="space-y-3">
             <div
-              v-for="meal in getMealsForDay(selectedDay)"
-              :key="meal.slot"
+              v-for="(meal, index) in getFormattedMealsForDay(selectedDay)"
+              :key="meal.slotKey"
               class="rounded-xl bg-elevated border border-default overflow-hidden"
+              :class="{ 'opacity-60': meal.eaten }"
             >
               <!-- Meal Header (Clickable) -->
-              <button
-                type="button"
-                class="w-full p-4 flex items-center gap-4 hover:bg-muted/10 transition-colors"
-                @click="toggleMealExpanded(meal.slot)"
+              <div
+                class="w-full p-4 flex items-center gap-4 hover:bg-muted/10 transition-colors cursor-pointer"
+                @click="toggleMealExpanded(meal.slotKey)"
               >
+                <!-- Eaten checkbox -->
+                <button
+                  type="button"
+                  class="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
+                  :class="meal.eaten ? 'bg-primary border-primary' : 'border-muted hover:border-primary'"
+                  :disabled="isTogglingMeal === meal.slotKey"
+                  @click.stop="toggleMealEaten(meal)"
+                >
+                  <UIcon
+                    v-if="isTogglingMeal === meal.slotKey"
+                    name="i-lucide-loader-2"
+                    class="w-4 h-4 animate-spin"
+                    :class="meal.eaten ? 'text-white' : 'text-primary'"
+                  />
+                  <UIcon
+                    v-else-if="meal.eaten"
+                    name="i-lucide-check"
+                    class="w-4 h-4 text-white"
+                  />
+                </button>
+
                 <div class="flex-1 text-left">
                   <div class="text-xs text-muted mb-1">
                     {{ meal.slot }}
                   </div>
-                  <div class="font-medium">
+                  <div class="font-medium" :class="{ 'line-through': meal.eaten }">
                     {{ meal.recipe }}
                   </div>
                 </div>
@@ -267,23 +486,23 @@ const copyShoppingList = async () => {
                   </div>
                   <div class="flex items-center gap-1.5 text-xs">
                     <span class="text-blue-500">{{ meal.macros.protein }}p</span>
-                    <span class="text-amber-500">{{ meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0 }}c</span>
-                    <span class="text-rose-500">{{ meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0 }}f</span>
+                    <span class="text-amber-500">{{ meal.macros.carbs }}c</span>
+                    <span class="text-rose-500">{{ meal.macros.fat }}f</span>
                   </div>
                 </div>
                 <UIcon
-                  :name="expandedMealSlot === meal.slot ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                  :name="expandedMealSlot === meal.slotKey ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
                   class="w-5 h-5 text-muted flex-shrink-0"
                 />
-              </button>
+              </div>
 
               <!-- Expanded Content -->
               <div
-                v-if="expandedMealSlot === meal.slot"
+                v-if="expandedMealSlot === meal.slotKey"
                 class="px-4 pb-4 space-y-4 border-t border-default"
               >
                 <!-- Ingredients -->
-                <div class="pt-4">
+                <div v-if="meal.ingredients.length > 0" class="pt-4">
                   <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
                     <UIcon name="i-lucide-list" class="w-4 h-4 text-primary" />
                     Ingredients
@@ -310,7 +529,7 @@ const copyShoppingList = async () => {
                 </div>
 
                 <!-- Instructions -->
-                <div>
+                <div v-if="meal.instructions">
                   <h4 class="text-sm font-semibold mb-2 flex items-center gap-2">
                     <UIcon name="i-lucide-chef-hat" class="w-4 h-4 text-primary" />
                     Preparation
@@ -327,6 +546,7 @@ const copyShoppingList = async () => {
                     color="neutral"
                     size="sm"
                     icon="i-lucide-repeat"
+                    @click.stop="openSwapMealModal(meal, index)"
                   >
                     Swap Meal
                   </UButton>
@@ -335,6 +555,7 @@ const copyShoppingList = async () => {
                     color="neutral"
                     size="sm"
                     icon="i-lucide-pencil"
+                    @click.stop="openEditMealModal(meal, index)"
                   >
                     Edit
                   </UButton>
@@ -463,7 +684,7 @@ const copyShoppingList = async () => {
                 color="neutral"
                 block
                 icon="i-lucide-rotate-ccw"
-                @click="shoppingList.forEach(i => i.purchased = false)"
+                @click="purchasedItems.clear()"
               >
                 Reset All
               </UButton>

@@ -4,8 +4,15 @@ import { useMacroCalculator } from '~/composables/useMacroCalculator'
 import { useMealPlanGenerator } from '~/composables/useMealPlanGenerator'
 import type { UserStats } from '~/composables/useMacroCalculator'
 
+const toast = useToast()
 const today = new Date()
 const formattedDate = format(today, 'EEEE, MMMM d')
+
+// API-backed composables
+const { isAuthenticated } = useAuth()
+const progressLogs = useProgressLogs()
+const mealPlans = useMealPlans()
+const workoutPlans = useWorkoutPlans()
 
 // Get user stats from onboarding (stored in localStorage)
 const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
@@ -23,24 +30,56 @@ const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
 const { calculateMacros } = useMacroCalculator()
 const macroTargets = computed(() => calculateMacros(userStatsStorage.value))
 
-// Generate meal plan based on macro targets
+// Generate meal plan based on macro targets (fallback if no API plan)
 const { generateMealPlan } = useMealPlanGenerator()
 const generatedPlan = generateMealPlan(macroTargets.value)
 
-// Get eaten status from localStorage
-const eatenMealsKey = `eaten-meals-${format(today, 'yyyy-MM-dd')}`
-const eatenMeals = useLocalStorage<number[]>(eatenMealsKey, [])
-
 // Convert generated meals to dashboard format
 const times = ['8:00 AM', '12:30 PM', '6:30 PM']
-const meals = ref(
-  generatedPlan.dayA.map((meal, index) => {
+
+// Use API meal plan if available, otherwise use generated plan
+const meals = computed(() => {
+  // Check if we have an API meal plan
+  const apiMeals = mealPlans.getTodaysMeals.value
+
+  if (apiMeals && apiMeals.length > 0) {
+    return apiMeals.map((meal, index) => {
+      const recipe = typeof meal.recipe === 'object' ? meal.recipe : null
+      const todayLog = progressLogs.getTodayLog.value
+      const mealEaten = todayLog?.mealsEaten?.find(m => m.slot === meal.slot)
+
+      return {
+        id: index + 1,
+        slot: meal.slot,
+        slotKey: meal.slot as string,
+        name: recipe?.name || `Meal ${index + 1}`,
+        time: times[index] || '12:00 PM',
+        macros: {
+          calories: recipe?.macros?.calories || 0,
+          protein: recipe?.macros?.protein || 0,
+          carbs: 0,
+          fat: 0
+        },
+        eaten: mealEaten?.eaten || false,
+        ingredients: [],
+        instructions: '',
+        recipeId: typeof meal.recipe === 'number' ? meal.recipe : recipe?.id
+      }
+    })
+  }
+
+  // Fallback to generated plan
+  return generatedPlan.dayA.map((meal, index) => {
     const mealCarbs = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.carbs || 0), 0) || 0
     const mealFat = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0
+    const slotKey = `meal_${index + 1}`
+    const todayLog = progressLogs.getTodayLog.value
+    const mealEaten = todayLog?.mealsEaten?.find(m => m.slot === slotKey)
 
     return {
       id: index + 1,
       slot: meal.slot,
+      slotKey,
       name: meal.recipe,
       time: times[index] || '12:00 PM',
       macros: {
@@ -49,14 +88,15 @@ const meals = ref(
         carbs: mealCarbs,
         fat: mealFat
       },
-      eaten: eatenMeals.value.includes(index + 1),
+      eaten: mealEaten?.eaten || false,
       ingredients: meal.ingredients || [],
-      instructions: meal.instructions
+      instructions: meal.instructions,
+      recipeId: undefined as number | undefined
     }
   })
-)
+})
 
-const macrosConsumed = ref(
+const macrosConsumed = computed(() =>
   meals.value
     .filter(m => m.eaten)
     .reduce(
@@ -76,59 +116,179 @@ const toggleMealExpanded = (mealId: number) => {
   expandedMealId.value = expandedMealId.value === mealId ? null : mealId
 }
 
-const training = ref({
-  type: 'Push Day',
-  exercises: 6,
-  completed: false
+// Training state from API or defaults
+const training = computed(() => {
+  const todayWorkout = workoutPlans.getTodaysWorkout.value
+  const todayLog = progressLogs.getTodayLog.value
+
+  return {
+    type: todayWorkout?.dayName || 'Push Day',
+    exercises: todayWorkout?.exercises?.length || 6,
+    completed: todayLog?.workoutCompleted || false
+  }
 })
 
-const cardio = ref({
-  type: 'Incline Walk',
-  duration: 20,
-  completed: false
+// Cardio state from API or defaults
+const cardio = computed(() => {
+  const plan = workoutPlans.activePlan.value
+  const todayLog = progressLogs.getTodayLog.value
+
+  return {
+    type: plan?.cardio?.type === 'incline_walk'
+      ? 'Incline Walk'
+      : plan?.cardio?.type === 'bike'
+        ? 'Bike'
+        : plan?.cardio?.type === 'stairs'
+          ? 'Stair Climber'
+          : plan?.cardio?.type === 'rowing' ? 'Rowing' : 'Incline Walk',
+    duration: plan?.cardio?.durationMinutes || 20,
+    completed: todayLog?.cardioCompleted || false
+  }
 })
 
-const steps = ref({
-  current: 6500,
-  target: 10000
+// Steps state from API or defaults
+const steps = computed(() => {
+  const plan = workoutPlans.activePlan.value
+  const todayLog = progressLogs.getTodayLog.value
+
+  return {
+    current: todayLog?.steps || 0,
+    target: plan?.dailyStepsTarget || 10000
+  }
 })
 
 const getProgress = (current: number, target: number) => {
   return Math.min((current / target) * 100, 100)
 }
 
-const toggleMealEaten = (mealId: number) => {
+// Toggle meal eaten - now saves to API
+const isTogglingMeal = ref<number | null>(null)
+const toggleMealEaten = async (mealId: number) => {
   const meal = meals.value.find(m => m.id === mealId)
-  if (meal) {
-    meal.eaten = !meal.eaten
+  if (!meal) return
 
-    // Update localStorage
-    if (meal.eaten) {
-      if (!eatenMeals.value.includes(mealId)) {
-        eatenMeals.value.push(mealId)
-      }
-    } else {
-      const index = eatenMeals.value.indexOf(mealId)
-      if (index > -1) {
-        eatenMeals.value.splice(index, 1)
-      }
+  isTogglingMeal.value = mealId
+  const newEatenState = !meal.eaten
+
+  try {
+    const result = await progressLogs.markMealEaten(
+      meal.slotKey,
+      newEatenState,
+      meal.recipeId
+    )
+
+    if (!result.success) {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to update meal status',
+        color: 'error'
+      })
     }
-
-    // Recalculate consumed macros
-    const consumed = meals.value
-      .filter(m => m.eaten)
-      .reduce(
-        (acc, m) => ({
-          calories: acc.calories + m.macros.calories,
-          protein: acc.protein + m.macros.protein,
-          carbs: acc.carbs + m.macros.carbs,
-          fat: acc.fat + m.macros.fat
-        }),
-        { calories: 0, protein: 0, carbs: 0, fat: 0 }
-      )
-    macrosConsumed.value = consumed
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to save meal status',
+      color: 'error'
+    })
+  } finally {
+    isTogglingMeal.value = null
   }
 }
+
+// Toggle workout completed - saves to API
+const isTogglingWorkout = ref(false)
+const toggleWorkoutCompleted = async () => {
+  isTogglingWorkout.value = true
+
+  try {
+    const result = await progressLogs.markWorkoutCompleted(!training.value.completed)
+
+    if (!result.success) {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to update workout status',
+        color: 'error'
+      })
+    }
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to save workout status',
+      color: 'error'
+    })
+  } finally {
+    isTogglingWorkout.value = false
+  }
+}
+
+// Toggle cardio completed - saves to API
+const isTogglingCardio = ref(false)
+const toggleCardioCompleted = async () => {
+  isTogglingCardio.value = true
+
+  try {
+    const result = await progressLogs.markCardioCompleted(
+      !cardio.value.completed,
+      cardio.value.duration
+    )
+
+    if (!result.success) {
+      toast.add({
+        title: 'Error',
+        description: result.error || 'Failed to update cardio status',
+        color: 'error'
+      })
+    }
+  } catch {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to save cardio status',
+      color: 'error'
+    })
+  } finally {
+    isTogglingCardio.value = false
+  }
+}
+
+// Swap meal modal
+const swapMealModalOpen = ref(false)
+const swappingMeal = ref<typeof meals.value[0] | null>(null)
+
+const openSwapMealModal = (meal: typeof meals.value[0]) => {
+  swappingMeal.value = meal
+  swapMealModalOpen.value = true
+}
+
+// Edit meal modal
+const editMealModalOpen = ref(false)
+const editingMeal = ref<typeof meals.value[0] | null>(null)
+
+const openEditMealModal = (meal: typeof meals.value[0]) => {
+  editingMeal.value = meal
+  editMealModalOpen.value = true
+}
+
+// Initialize API data on mount
+onMounted(async () => {
+  if (isAuthenticated.value) {
+    await Promise.all([
+      progressLogs.init(),
+      mealPlans.init(),
+      workoutPlans.init()
+    ])
+  }
+})
+
+// Watch for auth changes
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    await Promise.all([
+      progressLogs.init(),
+      mealPlans.init(),
+      workoutPlans.init()
+    ])
+  }
+})
 </script>
 
 <template>
@@ -252,10 +412,17 @@ const toggleMealEaten = (mealId: number) => {
                   type="button"
                   class="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors"
                   :class="meal.eaten ? 'bg-primary border-primary' : 'border-muted hover:border-primary'"
+                  :disabled="isTogglingMeal === meal.id"
                   @click.stop="toggleMealEaten(meal.id)"
                 >
                   <UIcon
-                    v-if="meal.eaten"
+                    v-if="isTogglingMeal === meal.id"
+                    name="i-lucide-loader-2"
+                    class="w-4 h-4 animate-spin"
+                    :class="meal.eaten ? 'text-white' : 'text-primary'"
+                  />
+                  <UIcon
+                    v-else-if="meal.eaten"
                     name="i-lucide-check"
                     class="w-4 h-4 text-white"
                   />
@@ -337,6 +504,7 @@ const toggleMealEaten = (mealId: number) => {
                     color="neutral"
                     size="sm"
                     icon="i-lucide-repeat"
+                    @click.stop="openSwapMealModal(meal)"
                   >
                     Swap Meal
                   </UButton>
@@ -345,6 +513,7 @@ const toggleMealEaten = (mealId: number) => {
                     color="neutral"
                     size="sm"
                     icon="i-lucide-pencil"
+                    @click.stop="openEditMealModal(meal)"
                   >
                     Edit
                   </UButton>
@@ -386,7 +555,8 @@ const toggleMealEaten = (mealId: number) => {
             <UButton
               class="w-full mt-4"
               :variant="training.completed ? 'outline' : 'solid'"
-              @click="training.completed = !training.completed"
+              :loading="isTogglingWorkout"
+              @click="toggleWorkoutCompleted"
             >
               {{ training.completed ? 'Mark Incomplete' : 'Start Workout' }}
             </UButton>
@@ -423,7 +593,8 @@ const toggleMealEaten = (mealId: number) => {
               class="w-full mt-4"
               :variant="cardio.completed ? 'outline' : 'solid'"
               color="neutral"
-              @click="cardio.completed = !cardio.completed"
+              :loading="isTogglingCardio"
+              @click="toggleCardioCompleted"
             >
               {{ cardio.completed ? 'Undo' : 'Mark Complete' }}
             </UButton>
