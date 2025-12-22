@@ -33,8 +33,14 @@ const measurementHistory = computed(() => {
     }))
 })
 
-// Progress photos (stored in logs with photo field - for now using localStorage fallback)
-const progressPhotos = useLocalStorage<Array<{ id: string, date: Date, type: string, url: string }>>('progress-photos', [])
+// Progress photos from API (with localStorage fallback for migration)
+const localProgressPhotos = useLocalStorage<Array<{ id: string, date: Date, type: string, url: string }>>('progress-photos', [])
+const progressPhotos = computed(() => {
+  // Combine API photos with localStorage fallback
+  const apiPhotos = progressLogs.allProgressPhotos.value
+  if (apiPhotos.length > 0) return apiPhotos
+  return localProgressPhotos.value
+})
 
 // Computed values
 const firstWeightEntry = computed(() => {
@@ -320,21 +326,32 @@ const handlePhotoUpload = async (event: Event) => {
     const result = await bunnyUploadProgressPhoto(file)
 
     if (result.success && result.url) {
-      // For now, store photos in localStorage until we add media upload to Payload
-      const id = `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      progressPhotos.value.push({
-        id,
-        date: new Date(),
-        type: 'front',
-        url: result.url
-      })
+      // Save photo to database via progress logs API
+      const saveResult = await progressLogs.addProgressPhoto(result.url, 'front')
 
-      toast.add({
-        title: 'Photo uploaded',
-        description: 'Your progress photo has been saved.',
-        icon: 'i-lucide-check',
-        color: 'success'
-      })
+      if (saveResult.success) {
+        toast.add({
+          title: 'Photo uploaded',
+          description: 'Your progress photo has been saved.',
+          icon: 'i-lucide-check',
+          color: 'success'
+        })
+      } else {
+        // Fallback to localStorage if API fails
+        const id = `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        localProgressPhotos.value.push({
+          id,
+          date: new Date(),
+          type: 'front',
+          url: result.url
+        })
+        toast.add({
+          title: 'Photo uploaded',
+          description: 'Photo saved locally (sync pending).',
+          icon: 'i-lucide-check',
+          color: 'warning'
+        })
+      }
     } else {
       toast.add({
         title: 'Upload failed',

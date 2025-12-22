@@ -7,7 +7,16 @@ import type { MealSlot, RecipeData } from '~/composables/useMealPlans'
 import { boringRecipes, type Recipe } from '~/data/recipes'
 
 const toast = useToast()
-const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+
+// Use ref to avoid SSR/CSR hydration mismatch with dates
+const weekStart = ref(startOfWeek(new Date(), { weekStartsOn: 1 }))
+const todayStr = ref('')
+
+onMounted(() => {
+  // Set date values only on client to avoid hydration mismatch
+  weekStart.value = startOfWeek(new Date(), { weekStartsOn: 1 })
+  todayStr.value = format(new Date(), 'yyyy-MM-dd')
+})
 
 // API-backed composables
 const { isAuthenticated } = useAuth()
@@ -25,13 +34,13 @@ watch(() => mealPlansApi.activePlan.value?.rotationType, (apiRotation) => {
 
 const days = computed(() => {
   return Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(weekStart, i)
+    const date = addDays(weekStart.value, i)
     return {
       date,
       dayName: format(date, 'EEEE'),
       shortName: format(date, 'EEE'),
       dateStr: format(date, 'MMM d'),
-      isToday: format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'),
+      isToday: todayStr.value ? format(date, 'yyyy-MM-dd') === todayStr.value : false,
       rotation: rotationType.value === 'ab_rotation' ? (i % 2 === 0 ? 'A' : 'B') : null
     }
   })
@@ -509,26 +518,28 @@ watch(isAuthenticated, async (authenticated) => {
               {{ rotationType === 'same_daily' ? 'Same boring meals every day' : 'Alternating A/B days' }}
             </p>
           </div>
-          <UButtonGroup>
+          <div class="inline-flex rounded-md overflow-hidden border border-default">
             <UButton
-              :variant="rotationType === 'same_daily' ? 'solid' : 'outline'"
+              :variant="rotationType === 'same_daily' ? 'solid' : 'ghost'"
               :color="rotationType === 'same_daily' ? 'primary' : 'neutral'"
               size="sm"
               :loading="isSavingRotation && rotationType !== 'same_daily'"
+              class="rounded-none"
               @click="updateRotationType('same_daily')"
             >
               Same Daily
             </UButton>
             <UButton
-              :variant="rotationType === 'ab_rotation' ? 'solid' : 'outline'"
+              :variant="rotationType === 'ab_rotation' ? 'solid' : 'ghost'"
               :color="rotationType === 'ab_rotation' ? 'primary' : 'neutral'"
               size="sm"
               :loading="isSavingRotation && rotationType !== 'ab_rotation'"
+              class="rounded-none"
               @click="updateRotationType('ab_rotation')"
             >
               A/B Rotation
             </UButton>
-          </UButtonGroup>
+          </div>
         </div>
 
         <!-- Week view -->
@@ -734,12 +745,28 @@ watch(isAuthenticated, async (authenticated) => {
     <!-- Shopping List Slideover -->
     <USlideover v-model:open="shoppingListOpen">
       <template #content>
-        <UDashboardSlideover
-          title="Shopping List"
-          description="Weekly grocery list based on your meal plan"
-          @close="shoppingListOpen = false"
-        >
-          <div class="space-y-6">
+        <UCard class="flex flex-col h-full">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold">
+                  Shopping List
+                </h3>
+                <p class="text-sm text-muted">
+                  Weekly grocery list based on your meal plan
+                </p>
+              </div>
+              <UButton
+                icon="i-lucide-x"
+                variant="ghost"
+                color="neutral"
+                size="sm"
+                @click="shoppingListOpen = false"
+              />
+            </div>
+          </template>
+
+          <div class="flex-1 overflow-y-auto space-y-6">
             <!-- Category Groups -->
             <div
               v-for="(items, category) in groupedShoppingList"
@@ -843,7 +870,7 @@ watch(isAuthenticated, async (authenticated) => {
               </UButton>
             </div>
           </template>
-        </UDashboardSlideover>
+        </UCard>
       </template>
     </USlideover>
 
@@ -872,26 +899,26 @@ watch(isAuthenticated, async (authenticated) => {
               <p class="text-sm font-medium mb-2">
                 Apply swap to:
               </p>
-              <UButtonGroup class="w-full">
+              <div class="flex w-full rounded-md overflow-hidden border border-default">
                 <UButton
-                  :variant="swapScope === 'all_weeks' ? 'solid' : 'outline'"
+                  :variant="swapScope === 'all_weeks' ? 'solid' : 'ghost'"
                   :color="swapScope === 'all_weeks' ? 'primary' : 'neutral'"
                   size="sm"
-                  class="flex-1"
+                  class="flex-1 rounded-none"
                   @click="swapScope = 'all_weeks'"
                 >
                   All Weeks
                 </UButton>
                 <UButton
-                  :variant="swapScope === 'current_week' ? 'solid' : 'outline'"
+                  :variant="swapScope === 'current_week' ? 'solid' : 'ghost'"
                   :color="swapScope === 'current_week' ? 'primary' : 'neutral'"
                   size="sm"
-                  class="flex-1"
+                  class="flex-1 rounded-none"
                   @click="swapScope = 'current_week'"
                 >
                   Current Week Only
                 </UButton>
-              </UButtonGroup>
+              </div>
             </div>
 
             <!-- Search -->

@@ -4,10 +4,16 @@
 
 A meal planning web app that prioritizes simplicity and effectiveness over variety. Users set goals (cut/maintain/gain), receive locked macro targets, and follow boring but consistent meal plans.
 
+**Production URL:** https://app-production-3934.up.railway.app/
+
+**Local Tools:**
+- Bun installed (use for running scripts)
+- Dev Browser plugin for browser automation testing
+
 **Tech Stack:**
 - **Frontend:** Nuxt 4 + Nuxt UI v4 + TypeScript
 - **Backend:** Payload CMS 3.x + PostgreSQL
-- **Infrastructure:** Docker Compose monorepo
+- **Infrastructure:** Docker Compose monorepo, Railway deployment
 
 ## Critical Development Rules
 

@@ -78,7 +78,7 @@ export const WorkoutPlans: CollectionConfig = {
         {
           name: 'exercises',
           type: 'array',
-          required: true,
+          required: false, // Exercises managed locally until DB is seeded
           fields: [
             {
               name: 'exercise',

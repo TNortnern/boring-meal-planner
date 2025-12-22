@@ -153,18 +153,19 @@ async function saveSettings() {
           <h4 class="font-medium mb-2">
             Meals per Day
           </h4>
-          <UButtonGroup>
+          <div class="inline-flex rounded-md overflow-hidden border border-default">
             <UButton
               v-for="n in [2, 3, 4, 5]"
               :key="n"
-              :variant="preferences.mealsPerDay === n ? 'solid' : 'outline'"
+              :variant="preferences.mealsPerDay === n ? 'solid' : 'ghost'"
               :color="preferences.mealsPerDay === n ? 'primary' : 'neutral'"
               size="sm"
+              class="rounded-none"
               @click="preferences.mealsPerDay = n"
             >
               {{ n }}
             </UButton>
-          </UButtonGroup>
+          </div>
         </div>
       </div>
     </UPageCard>

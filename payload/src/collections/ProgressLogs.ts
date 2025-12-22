@@ -138,6 +138,34 @@ export const ProgressLogs: CollectionConfig = {
       }
     },
     {
+      name: 'progressPhotos',
+      type: 'array',
+      admin: {
+        description: 'Progress photos stored externally (Bunny CDN)'
+      },
+      fields: [
+        {
+          name: 'url',
+          type: 'text',
+          required: true
+        },
+        {
+          name: 'type',
+          type: 'select',
+          defaultValue: 'front',
+          options: [
+            { label: 'Front', value: 'front' },
+            { label: 'Side', value: 'side' },
+            { label: 'Back', value: 'back' }
+          ]
+        },
+        {
+          name: 'uploadedAt',
+          type: 'date'
+        }
+      ]
+    },
+    {
       name: 'shoppingListPurchased',
       type: 'json',
       admin: {

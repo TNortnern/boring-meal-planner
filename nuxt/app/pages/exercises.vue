@@ -334,32 +334,35 @@ watch(isAuthenticated, async (authenticated) => {
 
           <div>
             <label class="text-xs text-muted block mb-1">Joint Friendly</label>
-            <UButtonGroup>
+            <div class="inline-flex rounded-md overflow-hidden border border-default">
               <UButton
-                :variant="selectedJointFriendly === undefined ? 'solid' : 'outline'"
+                :variant="selectedJointFriendly === undefined ? 'solid' : 'ghost'"
                 :color="selectedJointFriendly === undefined ? 'primary' : 'neutral'"
                 size="sm"
+                class="rounded-none"
                 @click="selectedJointFriendly = undefined"
               >
                 All
               </UButton>
               <UButton
-                :variant="selectedJointFriendly === true ? 'solid' : 'outline'"
+                :variant="selectedJointFriendly === true ? 'solid' : 'ghost'"
                 :color="selectedJointFriendly === true ? 'primary' : 'neutral'"
                 size="sm"
+                class="rounded-none"
                 @click="selectedJointFriendly = true"
               >
                 Yes
               </UButton>
               <UButton
-                :variant="selectedJointFriendly === false ? 'solid' : 'outline'"
+                :variant="selectedJointFriendly === false ? 'solid' : 'ghost'"
                 :color="selectedJointFriendly === false ? 'primary' : 'neutral'"
                 size="sm"
+                class="rounded-none"
                 @click="selectedJointFriendly = false"
               >
                 No
               </UButton>
-            </UButtonGroup>
+            </div>
           </div>
 
           <div class="flex items-end ml-auto">

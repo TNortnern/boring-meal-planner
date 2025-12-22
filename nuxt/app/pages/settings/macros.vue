@@ -159,24 +159,26 @@ async function saveSettings() {
             {{ aggression === 'safe' ? 'Conservative for sustainable results' : 'Faster results, requires more discipline' }}
           </p>
         </div>
-        <UButtonGroup>
+        <div class="inline-flex rounded-md overflow-hidden border border-default">
           <UButton
-            :variant="aggression === 'safe' ? 'solid' : 'outline'"
+            :variant="aggression === 'safe' ? 'solid' : 'ghost'"
             :color="aggression === 'safe' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="aggression = 'safe'"
           >
             Safe
           </UButton>
           <UButton
-            :variant="aggression === 'aggressive' ? 'solid' : 'outline'"
+            :variant="aggression === 'aggressive' ? 'solid' : 'ghost'"
             :color="aggression === 'aggressive' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="aggression = 'aggressive'"
           >
             Aggressive
           </UButton>
-        </UButtonGroup>
+        </div>
       </div>
     </UPageCard>
 

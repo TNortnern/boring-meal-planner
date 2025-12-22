@@ -68,32 +68,35 @@ const sexOptions = [
           :placeholder="state.height.unit === 'cm' ? '175' : '69'"
           class="flex-1"
         />
-        <UButtonGroup>
+        <div class="inline-flex rounded-md overflow-hidden border border-default">
           <UButton
-            :variant="state.height.unit === 'cm' ? 'solid' : 'outline'"
+            :variant="state.height.unit === 'cm' ? 'solid' : 'ghost'"
             :color="state.height.unit === 'cm' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="state.height.unit = 'cm'"
           >
             cm
           </UButton>
           <UButton
-            :variant="state.height.unit === 'in' ? 'solid' : 'outline'"
+            :variant="state.height.unit === 'in' ? 'solid' : 'ghost'"
             :color="state.height.unit === 'in' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="state.height.unit = 'in'"
           >
             in
           </UButton>
           <UButton
-            :variant="state.height.unit === 'ft' ? 'solid' : 'outline'"
+            :variant="state.height.unit === 'ft' ? 'solid' : 'ghost'"
             :color="state.height.unit === 'ft' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="state.height.unit = 'ft'"
           >
             ft
           </UButton>
-        </UButtonGroup>
+        </div>
       </div>
     </UFormField>
 
@@ -106,24 +109,26 @@ const sexOptions = [
           :placeholder="state.weight.unit === 'kg' ? '80' : '176'"
           class="flex-1"
         />
-        <UButtonGroup>
+        <div class="inline-flex rounded-md overflow-hidden border border-default">
           <UButton
-            :variant="state.weight.unit === 'kg' ? 'solid' : 'outline'"
+            :variant="state.weight.unit === 'kg' ? 'solid' : 'ghost'"
             :color="state.weight.unit === 'kg' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="state.weight.unit = 'kg'"
           >
             kg
           </UButton>
           <UButton
-            :variant="state.weight.unit === 'lbs' ? 'solid' : 'outline'"
+            :variant="state.weight.unit === 'lbs' ? 'solid' : 'ghost'"
             :color="state.weight.unit === 'lbs' ? 'primary' : 'neutral'"
             size="sm"
+            class="rounded-none"
             @click="state.weight.unit = 'lbs'"
           >
             lbs
           </UButton>
-        </UButtonGroup>
+        </div>
       </div>
     </UFormField>
 

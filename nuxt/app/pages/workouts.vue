@@ -5,7 +5,6 @@ const toast = useToast()
 const {
   boringMode,
   currentPlan: localPlan,
-  workoutStats,
   updateExerciseTarget: updateLocalExercise,
   addExercise: addLocalExercise,
   createWorkoutPlan: createLocalPlan
@@ -668,7 +667,7 @@ watch(isAuthenticated, async (authenticated) => {
               </div>
               <div>
                 <div class="text-2xl font-bold">
-                  {{ workoutStats.thisWeek }}
+                  {{ progressLogs.workoutsThisWeek.value }}
                 </div>
                 <div class="text-sm text-muted">
                   Workouts this week
