@@ -12,7 +12,7 @@ const {
 } = useWorkouts()
 
 // API-backed composables
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, init: initAuth } = useAuth()
 const progressLogs = useProgressLogs()
 const workoutPlansApi = useWorkoutPlans()
 
@@ -458,6 +458,9 @@ const handleCreatePlan = async () => {
 
 // Initialize API data on mount
 onMounted(async () => {
+  // First, initialize auth to fetch user from token
+  await initAuth()
+
   if (isAuthenticated.value) {
     await Promise.all([
       progressLogs.init(),

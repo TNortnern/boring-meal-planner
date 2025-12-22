@@ -11,7 +11,7 @@ const today = new Date()
 const formattedDate = format(today, 'EEEE, MMMM d')
 
 // API-backed composables
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, init: initAuth } = useAuth()
 const progressLogs = useProgressLogs()
 const mealPlans = useMealPlans()
 const workoutPlans = useWorkoutPlans()
@@ -375,6 +375,10 @@ const confirmSwapMeal = async () => {
 
 // Initialize API data on mount
 onMounted(async () => {
+  // First, initialize auth to fetch user from token
+  await initAuth()
+
+  // Then load data if authenticated
   if (isAuthenticated.value) {
     await Promise.all([
       progressLogs.init(),
@@ -765,26 +769,26 @@ watch(isAuthenticated, async (authenticated) => {
               <p class="text-sm font-medium mb-2">
                 Apply swap to:
               </p>
-              <UButtonGroup class="w-full">
+              <div class="flex w-full rounded-md overflow-hidden border border-default">
                 <UButton
-                  :variant="swapScope === 'all_weeks' ? 'solid' : 'outline'"
+                  :variant="swapScope === 'all_weeks' ? 'solid' : 'ghost'"
                   :color="swapScope === 'all_weeks' ? 'primary' : 'neutral'"
                   size="sm"
-                  class="flex-1"
+                  class="flex-1 rounded-none"
                   @click="swapScope = 'all_weeks'"
                 >
                   All Weeks
                 </UButton>
                 <UButton
-                  :variant="swapScope === 'current_week' ? 'solid' : 'outline'"
+                  :variant="swapScope === 'current_week' ? 'solid' : 'ghost'"
                   :color="swapScope === 'current_week' ? 'primary' : 'neutral'"
                   size="sm"
-                  class="flex-1"
+                  class="flex-1 rounded-none"
                   @click="swapScope = 'current_week'"
                 >
                   Current Week Only
                 </UButton>
-              </UButtonGroup>
+              </div>
             </div>
 
             <!-- Search -->
