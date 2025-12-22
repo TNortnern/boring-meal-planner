@@ -492,212 +492,311 @@ watch(isAuthenticated, async (authenticated) => {
       </template>
 
       <template #right>
-        <UButton icon="i-lucide-plus" @click="createNewPlanOpen = true">
-          New Plan
-        </UButton>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 text-sm">
+            <USwitch v-model="boringMode" size="sm" />
+            <span class="text-muted hidden sm:inline">{{ boringMode ? 'BORING' : 'Effective' }}</span>
+          </div>
+          <UButton icon="i-lucide-plus" size="sm" @click="createNewPlanOpen = true">
+            New Plan
+          </UButton>
+        </div>
       </template>
     </UDashboardNavbar>
 
     <UDashboardPanelContent class="px-4 sm:px-6 lg:px-8">
-      <div class="space-y-6">
-        <!-- Current Plan Header -->
-        <div class="p-4 rounded-xl bg-elevated border border-default">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h2 class="text-lg font-semibold">
-                {{ currentPlan.name }}
-              </h2>
-              <p class="text-sm text-muted">
-                {{ splitTypes.find(s => s.value === currentPlan.type)?.label }} ·
-                {{ currentPlan.daysPerWeek }} days/week · Week {{ currentPlan.currentWeek }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <USwitch v-model="boringMode" />
-              <span class="text-sm">{{ boringMode ? 'BORING Mode' : 'Effective Mode' }}</span>
-            </div>
-          </div>
+      <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Weekly Progress Hero -->
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 via-transparent to-primary/10 border border-primary/20 p-6">
+          <!-- Decorative elements -->
+          <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
 
-          <!-- Day tabs -->
-          <div class="flex gap-2 overflow-x-auto pb-2">
-            <button
-              v-for="(day, index) in currentPlan.days"
-              :key="day.name"
-              type="button"
-              class="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              :class="selectedDayIndex === index
-                ? 'bg-primary text-white'
-                : 'bg-muted/30 hover:bg-muted/50'"
-              @click="selectedDayIndex = index"
-            >
-              {{ day.name }}
-            </button>
+          <div class="relative">
+            <!-- Header row -->
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h2 class="text-xl font-bold tracking-tight">
+                  This Week
+                </h2>
+                <p class="text-sm text-muted mt-0.5">
+                  {{ currentPlan.name }}
+                </p>
+              </div>
+              <div class="text-right">
+                <div class="text-3xl font-black text-primary tabular-nums">
+                  {{ progressLogs.workoutsThisWeek.value }}<span class="text-lg text-muted font-normal">/{{ currentPlan.daysPerWeek }}</span>
+                </div>
+                <p class="text-xs text-muted uppercase tracking-wider">
+                  Workouts Done
+                </p>
+              </div>
+            </div>
+
+            <!-- Weekly day indicators -->
+            <div class="flex items-center justify-between gap-2">
+              <button
+                v-for="(day, index) in currentPlan.days"
+                :key="day.name"
+                type="button"
+                class="group flex-1 min-w-0"
+                @click="selectedDayIndex = index"
+              >
+                <div
+                  class="relative flex flex-col items-center p-3 rounded-xl transition-all duration-200"
+                  :class="[
+                    selectedDayIndex === index
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105'
+                      : 'hover:bg-muted/50'
+                  ]"
+                >
+                  <!-- Day abbreviation -->
+                  <span
+                    class="text-[10px] font-bold uppercase tracking-wider mb-1.5"
+                    :class="selectedDayIndex === index ? 'text-primary-foreground/80' : 'text-muted'"
+                  >
+                    {{ day.name.slice(0, 3) }}
+                  </span>
+
+                  <!-- Status indicator -->
+                  <div
+                    class="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                    :class="[
+                      selectedDayIndex === index
+                        ? 'bg-primary-foreground/20'
+                        : index < (progressLogs.workoutsThisWeek.value || 0)
+                          ? 'bg-primary/20 text-primary'
+                          : 'bg-muted/30'
+                    ]"
+                  >
+                    <UIcon
+                      v-if="index < (progressLogs.workoutsThisWeek.value || 0)"
+                      name="i-lucide-check"
+                      class="w-4 h-4"
+                      :class="selectedDayIndex === index ? 'text-primary-foreground' : 'text-primary'"
+                    />
+                    <span
+                      v-else
+                      class="text-xs font-semibold"
+                      :class="selectedDayIndex === index ? 'text-primary-foreground' : 'text-muted'"
+                    >
+                      {{ index + 1 }}
+                    </span>
+                  </div>
+
+                  <!-- Active indicator dot -->
+                  <div
+                    v-if="selectedDayIndex === index"
+                    class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary-foreground"
+                  />
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Selected Day Detail -->
-        <div v-if="currentDay" class="space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="font-semibold">
-                {{ currentDay.name }}
-              </h3>
+        <!-- Today's Workout Status Card -->
+        <div
+          class="rounded-2xl border-2 transition-colors p-5"
+          :class="isTodayWorkoutCompleted
+            ? 'bg-success/5 border-success/30'
+            : 'bg-elevated border-default'"
+        >
+          <div class="flex items-center gap-4">
+            <!-- Status icon -->
+            <div
+              class="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+              :class="isTodayWorkoutCompleted ? 'bg-success/20' : 'bg-primary/10'"
+            >
+              <UIcon
+                :name="isTodayWorkoutCompleted ? 'i-lucide-trophy' : 'i-lucide-dumbbell'"
+                class="w-7 h-7"
+                :class="isTodayWorkoutCompleted ? 'text-success' : 'text-primary'"
+              />
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <h3 class="font-bold text-lg truncate">
+                  {{ currentDay?.name || 'Rest Day' }}
+                </h3>
+                <UBadge
+                  v-if="isTodayWorkoutCompleted"
+                  color="success"
+                  variant="subtle"
+                  size="xs"
+                >
+                  Done
+                </UBadge>
+              </div>
               <p class="text-sm text-muted">
-                {{ currentDay.focus }}
+                <span v-if="currentDay">
+                  {{ currentDay.exercises.length }} exercises · {{ getTotalSets(currentDay.exercises) }} sets
+                </span>
+                <span v-else>No workout scheduled</span>
               </p>
             </div>
-            <div class="flex items-center gap-4 text-sm">
-              <div>
-                <span class="font-medium">{{ currentDay.exercises.length }}</span>
-                <span class="text-muted"> exercises</span>
-              </div>
-              <div>
-                <span class="font-medium">{{ getTotalSets(currentDay.exercises) }}</span>
-                <span class="text-muted"> total sets</span>
-              </div>
+
+            <!-- Action -->
+            <div class="flex-shrink-0">
               <UButton
-                v-if="!isTodayWorkoutCompleted"
+                v-if="currentDay && !isTodayWorkoutCompleted"
+                size="lg"
+                class="font-semibold px-6"
                 @click="startActiveWorkout"
               >
-                Start Workout
+                <UIcon name="i-lucide-play" class="w-4 h-4 mr-1.5" />
+                Start
               </UButton>
-              <div v-else class="flex items-center gap-2">
-                <UIcon name="i-lucide-check-circle" class="w-5 h-5 text-success" />
-                <span class="text-success font-medium">Completed</span>
-              </div>
+              <UButton
+                v-else-if="isTodayWorkoutCompleted"
+                variant="soft"
+                color="success"
+                size="lg"
+                disabled
+              >
+                <UIcon name="i-lucide-check" class="w-4 h-4 mr-1.5" />
+                Complete
+              </UButton>
             </div>
           </div>
+        </div>
 
-          <!-- Exercise List -->
+        <!-- Exercise List -->
+        <div v-if="currentDay" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-muted">
+              Exercises
+            </h3>
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              icon="i-lucide-plus"
+              @click="openAddExercise"
+            >
+              Add
+            </UButton>
+          </div>
+
           <div class="space-y-2">
             <div
               v-for="(exercise, exIndex) in currentDay.exercises"
               :key="exercise.name"
-              class="rounded-xl bg-elevated border border-default overflow-hidden"
+              class="group rounded-xl bg-elevated border border-default overflow-hidden hover:border-muted transition-colors"
             >
               <div class="p-4">
-                <div class="flex items-center justify-between">
-                  <div class="flex-1">
-                    <div class="font-medium">
+                <div class="flex items-center gap-4">
+                  <!-- Exercise number -->
+                  <div class="w-8 h-8 rounded-lg bg-muted/30 flex items-center justify-center flex-shrink-0">
+                    <span class="text-sm font-bold text-muted">{{ exIndex + 1 }}</span>
+                  </div>
+
+                  <!-- Exercise info -->
+                  <div class="flex-1 min-w-0">
+                    <div class="font-semibold truncate">
                       {{ exercise.name }}
                     </div>
-                    <div class="text-sm text-muted mt-1">
-                      {{ exercise.sets }} sets × {{ exercise.reps }} reps
-                      <span v-if="exercise.targetWeight > 0"> @ {{ exercise.targetWeight }} lbs</span>
+                    <div class="flex items-center gap-3 text-sm text-muted mt-0.5">
+                      <span class="flex items-center gap-1">
+                        <UIcon name="i-lucide-layers" class="w-3.5 h-3.5" />
+                        {{ exercise.sets }} sets
+                      </span>
+                      <span class="flex items-center gap-1">
+                        <UIcon name="i-lucide-repeat" class="w-3.5 h-3.5" />
+                        {{ exercise.reps }} reps
+                      </span>
+                      <span v-if="exercise.targetWeight > 0" class="flex items-center gap-1">
+                        <UIcon name="i-lucide-weight" class="w-3.5 h-3.5" />
+                        {{ exercise.targetWeight }} lbs
+                      </span>
                     </div>
                   </div>
-                  <div class="flex items-center gap-2">
+
+                  <!-- Actions -->
+                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <UButton
                       variant="ghost"
                       color="neutral"
-                      :icon="expandedExercise === exercise.name ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-                      size="sm"
+                      :icon="expandedExercise === exercise.name ? 'i-lucide-chevron-up' : 'i-lucide-info'"
+                      size="xs"
                       @click="toggleExerciseExpanded(exercise.name)"
                     />
                     <UButton
                       variant="ghost"
                       color="neutral"
                       icon="i-lucide-pencil"
-                      size="sm"
+                      size="xs"
                       @click="openEditExercise(selectedDayIndex, exIndex)"
                     />
                   </div>
                 </div>
               </div>
 
-              <!-- Expanded exercise details -->
-              <div v-if="expandedExercise === exercise.name" class="px-4 pb-4 pt-2 border-t border-default">
-                <div v-if="exercise.instructions" class="mb-3">
-                  <div class="text-sm font-medium mb-1">
-                    Instructions
+              <!-- Expanded details -->
+              <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class="opacity-0 max-h-0"
+                enter-to-class="opacity-100 max-h-48"
+                leave-active-class="transition-all duration-150 ease-in"
+                leave-from-class="opacity-100 max-h-48"
+                leave-to-class="opacity-0 max-h-0"
+              >
+                <div v-if="expandedExercise === exercise.name" class="overflow-hidden">
+                  <div class="px-4 pb-4 pt-2 border-t border-default bg-muted/5">
+                    <div v-if="exercise.instructions" class="mb-3">
+                      <div class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+                        Instructions
+                      </div>
+                      <p class="text-sm">
+                        {{ exercise.instructions }}
+                      </p>
+                    </div>
+                    <div v-if="exercise.videoUrl">
+                      <div class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+                        Video
+                      </div>
+                      <a :href="exercise.videoUrl" target="_blank" class="text-sm text-primary hover:underline inline-flex items-center gap-1">
+                        <UIcon name="i-lucide-external-link" class="w-3.5 h-3.5" />
+                        Watch tutorial
+                      </a>
+                    </div>
+                    <div v-if="!exercise.instructions && !exercise.videoUrl" class="text-sm text-muted">
+                      No details yet. Tap edit to add notes.
+                    </div>
                   </div>
-                  <p class="text-sm text-muted">
-                    {{ exercise.instructions }}
-                  </p>
                 </div>
-                <div v-if="exercise.videoUrl" class="mb-3">
-                  <div class="text-sm font-medium mb-1">
-                    Video
-                  </div>
-                  <a :href="exercise.videoUrl" target="_blank" class="text-sm text-primary hover:underline">
-                    Watch exercise video
-                  </a>
-                </div>
-                <div v-if="!exercise.instructions && !exercise.videoUrl" class="text-sm text-muted">
-                  No additional details available. Click edit to add instructions or video URL.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Add Exercise Button -->
-          <UButton
-            variant="outline"
-            color="neutral"
-            block
-            icon="i-lucide-plus"
-            @click="openAddExercise"
-          >
-            Add Exercise
-          </UButton>
-        </div>
-
-        <!-- Quick Stats -->
-        <div class="grid gap-4 md:grid-cols-3">
-          <div class="p-4 rounded-xl bg-elevated border border-default">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg bg-primary/10">
-                <UIcon name="i-lucide-calendar" class="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div class="text-2xl font-bold">
-                  {{ currentPlan.currentWeek }}
-                </div>
-                <div class="text-sm text-muted">
-                  Weeks on plan
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-4 rounded-xl bg-elevated border border-default">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg bg-primary/10">
-                <UIcon name="i-lucide-dumbbell" class="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div class="text-2xl font-bold">
-                  {{ progressLogs.workoutsThisWeek.value }}
-                </div>
-                <div class="text-sm text-muted">
-                  Workouts this week
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-4 rounded-xl bg-elevated border border-default">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg bg-primary/10">
-                <UIcon name="i-lucide-layers" class="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div class="text-2xl font-bold">
-                  {{ currentPlan.days.reduce((sum, d) => sum + getTotalSets(d.exercises), 0) }}
-                </div>
-                <div class="text-sm text-muted">
-                  Weekly sets
-                </div>
-              </div>
+              </Transition>
             </div>
           </div>
         </div>
 
-        <!-- BORING Mode indicator -->
-        <div class="flex items-center justify-center gap-2 py-3 text-sm text-muted">
-          <UIcon name="i-lucide-lock" class="w-4 h-4" />
-          <span v-if="boringMode">BORING Mode — Same workouts, progressive overload</span>
-          <span v-else>Effective Mode — Varied programming for optimal results</span>
+        <!-- Quick Stats Row -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="p-4 rounded-xl bg-muted/20 text-center">
+            <div class="text-2xl font-black tabular-nums">
+              {{ currentPlan.currentWeek }}
+            </div>
+            <div class="text-xs text-muted uppercase tracking-wider mt-0.5">
+              Week
+            </div>
+          </div>
+          <div class="p-4 rounded-xl bg-muted/20 text-center">
+            <div class="text-2xl font-black tabular-nums">
+              {{ currentPlan.days.reduce((sum, d) => sum + getTotalSets(d.exercises), 0) }}
+            </div>
+            <div class="text-xs text-muted uppercase tracking-wider mt-0.5">
+              Weekly Sets
+            </div>
+          </div>
+          <div class="p-4 rounded-xl bg-muted/20 text-center">
+            <div class="text-2xl font-black tabular-nums">
+              {{ currentPlan.daysPerWeek }}
+            </div>
+            <div class="text-xs text-muted uppercase tracking-wider mt-0.5">
+              Days/Week
+            </div>
+          </div>
         </div>
       </div>
     </UDashboardPanelContent>
