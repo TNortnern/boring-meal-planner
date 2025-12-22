@@ -74,6 +74,11 @@ const selectedDayIndex = ref(0)
 
 const currentDay = computed(() => currentPlan.value.days[selectedDayIndex.value])
 
+// Check if today's workout is already completed
+const isTodayWorkoutCompleted = computed(() => {
+  return progressLogs.getTodayLog.value?.workoutCompleted || false
+})
+
 const getTotalSets = (exercises: typeof currentPlan.value.days[0]['exercises']) => {
   return exercises.reduce((sum, ex) => sum + ex.sets, 0)
 }
@@ -551,9 +556,16 @@ watch(isAuthenticated, async (authenticated) => {
                 <span class="font-medium">{{ getTotalSets(currentDay.exercises) }}</span>
                 <span class="text-muted"> total sets</span>
               </div>
-              <UButton @click="startActiveWorkout">
+              <UButton
+                v-if="!isTodayWorkoutCompleted"
+                @click="startActiveWorkout"
+              >
                 Start Workout
               </UButton>
+              <div v-else class="flex items-center gap-2">
+                <UIcon name="i-lucide-check-circle" class="w-5 h-5 text-success" />
+                <span class="text-success font-medium">Completed</span>
+              </div>
             </div>
           </div>
 
