@@ -5,12 +5,7 @@ const toast = useToast()
 const {
   boringMode,
   currentPlan: localPlan,
-  currentSession,
   workoutStats,
-  startWorkout: startLocalWorkout,
-  completeSet,
-  endWorkout: endLocalWorkout,
-  cancelWorkout: cancelLocalWorkout,
   updateExerciseTarget: updateLocalExercise,
   addExercise: addLocalExercise,
   createWorkoutPlan: createLocalPlan
@@ -35,14 +30,30 @@ const currentPlan = computed(() => {
       days: apiPlan.workouts.map(w => ({
         name: w.dayName,
         focus: w.dayOfWeek || '',
-        exercises: w.exercises.map(e => ({
-          name: typeof e.exercise === 'object' ? (e.exercise as { name: string }).name : `Exercise ${e.exercise}`,
-          sets: e.sets,
-          reps: e.reps,
-          targetWeight: 0,
-          videoUrl: undefined,
-          instructions: e.notes || undefined
-        }))
+        exercises: w.exercises.map((e) => {
+          // Resolve exercise name: from populated object, local library, or fallback
+          let exerciseName = `Exercise ${e.exercise}`
+          if (typeof e.exercise === 'object' && e.exercise !== null) {
+            exerciseName = (e.exercise as { name: string }).name
+          } else if (typeof e.exercise === 'number') {
+            // Look up in local exercise library by ID
+            const libraryExercise = exerciseLibrary.find(ex => ex.id === e.exercise)
+            if (libraryExercise) {
+              exerciseName = libraryExercise.name
+            }
+          } else if (typeof e.exercise === 'string') {
+            // Exercise stored as name string
+            exerciseName = e.exercise
+          }
+          return {
+            name: exerciseName,
+            sets: e.sets,
+            reps: e.reps,
+            targetWeight: 0,
+            videoUrl: undefined,
+            instructions: e.notes || undefined
+          }
+        })
       }))
     }
   }
@@ -118,18 +129,8 @@ const saveExercise = async () => {
       editingExerciseData.value
     )
 
-    // Also save to API if we have an active plan
-    if (workoutPlansApi.activePlan.value) {
-      await workoutPlansApi.updateExercise(
-        editingExercise.value.dayIndex,
-        editingExercise.value.exerciseIndex,
-        {
-          sets: editingExerciseData.value.sets,
-          reps: editingExerciseData.value.reps,
-          notes: editingExerciseData.value.instructions
-        }
-      )
-    }
+    // Note: API sync for exercises is disabled until the database is seeded with exercise data.
+    // Exercise updates are managed locally for now.
 
     toast.add({
       title: 'Exercise Updated',
@@ -159,30 +160,86 @@ const getExerciseToEdit = computed(() => {
 const activeWorkoutOpen = ref(false)
 const workingSetData = ref<{ [key: string]: { [setNum: number]: { reps: number, weight: number } } }>({})
 
+// Session exercise progress type
+interface SessionExercise {
+  exerciseName: string
+  setNumber: number
+  completed: boolean
+  actualReps?: number
+  actualWeight?: number
+}
+
+// Custom session that matches the displayed exercises (API or local plan)
+const activeSession = ref<{
+  id: string
+  date: Date
+  dayName: string
+  exercises: SessionExercise[]
+  completed: boolean
+} | null>(null)
+
 const startActiveWorkout = () => {
-  startLocalWorkout(selectedDayIndex.value)
+  const day = currentDay.value
+  if (!day) return
+
+  // Create session from the DISPLAYED exercises (API plan if available)
+  const exercises: SessionExercise[] = []
+  day.exercises.forEach((exercise) => {
+    for (let i = 0; i < exercise.sets; i++) {
+      exercises.push({
+        exerciseName: exercise.name,
+        setNumber: i + 1,
+        completed: false
+      })
+    }
+  })
+
+  activeSession.value = {
+    id: `session-${Date.now()}`,
+    date: new Date(),
+    dayName: day.name,
+    exercises,
+    completed: false
+  }
+
   workingSetData.value = {}
   activeWorkoutOpen.value = true
 }
 
 const isSetCompleted = (exerciseName: string, setNumber: number) => {
-  if (!currentSession.value) return false
-  const exercise = currentSession.value.exercises.find(
+  if (!activeSession.value) return false
+  const exercise = activeSession.value.exercises.find(
     e => e.exerciseName === exerciseName && e.setNumber === setNumber
   )
   return exercise?.completed || false
 }
 
-const completeSetInWorkout = (exerciseName: string, setNumber: number) => {
+const completeSetInWorkout = (exerciseName: string, setNumber: number, fallbackReps?: string, fallbackWeight?: number) => {
+  if (!activeSession.value) return
+
+  // Initialize working set data if not present (user didn't modify inputs)
+  if (fallbackReps !== undefined && fallbackWeight !== undefined) {
+    initWorkingSetData(exerciseName, setNumber, fallbackWeight, fallbackReps)
+  }
+
   const data = workingSetData.value[exerciseName]?.[setNumber]
 
-  if (data?.reps && data?.weight) {
-    completeSet(exerciseName, setNumber, data.reps, data.weight)
+  // Use !== undefined to allow 0 as valid weight (bodyweight exercises)
+  if (data?.reps !== undefined && data?.reps > 0 && data?.weight !== undefined) {
+    // Update the activeSession directly
+    const exercise = activeSession.value.exercises.find(
+      e => e.exerciseName === exerciseName && e.setNumber === setNumber
+    )
+    if (exercise) {
+      exercise.completed = true
+      exercise.actualReps = data.reps
+      exercise.actualWeight = data.weight
+    }
   }
 }
 
 const getSetsCompleted = (exerciseName: string, totalSets: number) => {
-  if (!currentSession.value) return 0
+  if (!activeSession.value) return 0
   let completed = 0
   for (let i = 1; i <= totalSets; i++) {
     if (isSetCompleted(exerciseName, i)) {
@@ -194,16 +251,16 @@ const getSetsCompleted = (exerciseName: string, totalSets: number) => {
 
 const isFinishingWorkout = ref(false)
 const finishWorkout = async () => {
-  if (!currentSession.value) return
+  if (!activeSession.value) return
 
-  const totalSets = currentSession.value.exercises.length
-  const completedSets = currentSession.value.exercises.filter(e => e.completed).length
+  const totalSets = activeSession.value.exercises.length
+  const completedSets = activeSession.value.exercises.filter(e => e.completed).length
 
   isFinishingWorkout.value = true
 
   try {
-    // End local session
-    endLocalWorkout()
+    // Mark session as completed
+    activeSession.value.completed = true
 
     // Mark workout as completed in progress log
     await progressLogs.markWorkoutCompleted(true)
@@ -222,13 +279,14 @@ const finishWorkout = async () => {
   } finally {
     isFinishingWorkout.value = false
     activeWorkoutOpen.value = false
+    activeSession.value = null
     workingSetData.value = {}
   }
 }
 
 const cancelActiveWorkout = () => {
-  cancelLocalWorkout()
   activeWorkoutOpen.value = false
+  activeSession.value = null
   workingSetData.value = {}
 }
 
@@ -303,16 +361,9 @@ const saveNewExercise = async () => {
       instructions: newExerciseData.value.instructions || undefined
     })
 
-    // Also save to API if authenticated
-    if (workoutPlansApi.activePlan.value) {
-      const exerciseFromLibrary = exerciseLibrary.find(e => e.name === newExerciseData.value.name)
-      await workoutPlansApi.addExercise(selectedDayIndex.value, {
-        exercise: exerciseFromLibrary?.id || newExerciseData.value.name,
-        sets: newExerciseData.value.sets,
-        reps: newExerciseData.value.reps,
-        notes: newExerciseData.value.instructions
-      })
-    }
+    // Note: API sync for exercises is disabled until the database is seeded with exercise data.
+    // Local exercise IDs don't match database exercise IDs, causing FK constraint violations.
+    // The plan structure is saved via API, but exercises are managed locally for now.
 
     toast.add({
       title: 'Exercise Added',
@@ -371,6 +422,8 @@ const handleCreatePlan = async () => {
       const splitInfo = splitTypes.find(s => s.value === newPlanType.value)
       const localCreatedPlan = localPlan.value
 
+      // Create workout plan without exercises (exercises use local IDs that don't exist in DB)
+      // The local plan has full exercise data - API sync stores plan metadata only
       await workoutPlansApi.createPlan({
         name: localCreatedPlan.name,
         splitType: newPlanType.value as 'ppl' | 'upper_lower' | 'full_body' | 'bro_split',
@@ -379,15 +432,7 @@ const handleCreatePlan = async () => {
         workouts: localCreatedPlan.days.map((day, idx) => ({
           dayName: day.name,
           dayOfWeek: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][idx % 7] as 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday',
-          exercises: day.exercises.map((ex) => {
-            const exerciseFromLibrary = exerciseLibrary.find(e => e.name === ex.name)
-            return {
-              exercise: exerciseFromLibrary?.id || ex.name,
-              sets: ex.sets,
-              reps: ex.reps,
-              notes: ex.instructions
-            }
-          })
+          exercises: [] // Exercises managed locally until DB is seeded with exercise data
         }))
       })
     }
@@ -461,7 +506,7 @@ watch(isAuthenticated, async (authenticated) => {
               </p>
             </div>
             <div class="flex items-center gap-2">
-              <UToggle v-model="boringMode" />
+              <USwitch v-model="boringMode" />
               <span class="text-sm">{{ boringMode ? 'BORING Mode' : 'Effective Mode' }}</span>
             </div>
           </div>
@@ -646,7 +691,7 @@ watch(isAuthenticated, async (authenticated) => {
     <!-- Active Workout Session Modal -->
     <UModal v-model:open="activeWorkoutOpen" :ui="{ content: 'sm:max-w-3xl' }">
       <template #content>
-        <UCard v-if="currentSession && currentDay">
+        <UCard v-if="activeSession && currentDay">
           <template #header>
             <div class="flex items-center justify-between">
               <div>
@@ -719,7 +764,7 @@ watch(isAuthenticated, async (authenticated) => {
                   <UButton
                     v-if="!isSetCompleted(exercise.name, setNum)"
                     size="sm"
-                    @click="completeSetInWorkout(exercise.name, setNum)"
+                    @click="completeSetInWorkout(exercise.name, setNum, exercise.reps, exercise.targetWeight)"
                   >
                     Complete
                   </UButton>
