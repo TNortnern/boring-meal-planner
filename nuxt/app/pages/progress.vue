@@ -9,6 +9,11 @@ const { uploadProgressPhoto: bunnyUploadProgressPhoto } = useBunnyUpload()
 const toast = useToast()
 const activeTab = ref<'overview' | 'weight' | 'photos' | 'measurements'>('overview')
 
+// Use refs for dates to avoid SSR/CSR hydration mismatches
+const todayFormatted = ref('')
+const todayDateStr = ref('')
+const isClient = ref(false)
+
 // User profile data for goals
 const startWeight = computed(() => user.value?.startingWeight || 195)
 const goalWeight = computed(() => user.value?.goalWeight || 175)
@@ -279,7 +284,7 @@ const checkInHistory = computed(() => progressLogs.checkInHistory.value)
 const addWeightOpen = ref(false)
 const newWeightEntry = ref({
   weight: 0,
-  date: format(new Date(), 'yyyy-MM-dd')
+  date: '' // Set on client to avoid SSR mismatch
 })
 
 const _openAddWeight = () => {
@@ -376,6 +381,11 @@ const handlePhotoUpload = async (event: Event) => {
 
 // Initialize API data on mount
 onMounted(async () => {
+  // Set client-side date values to avoid hydration mismatches
+  isClient.value = true
+  todayFormatted.value = format(new Date(), 'EEEE, MMMM d')
+  todayDateStr.value = format(new Date(), 'yyyy-MM-dd')
+
   // Load progress photos from localStorage (fallback for migration)
   const storedPhotos = localStorage.getItem('progress-photos')
   if (storedPhotos) {
@@ -887,7 +897,7 @@ watch(isAuthenticated, async (authenticated) => {
                   {{ editMode ? 'Edit Check-in' : 'New Check-in' }}
                 </h3>
                 <p class="text-sm text-muted">
-                  {{ editMode && editingDate ? format(editingDate, 'EEEE, MMMM d') : format(new Date(), 'EEEE, MMMM d') }}
+                  {{ editMode && editingDate ? format(editingDate, 'EEEE, MMMM d') : todayFormatted }}
                 </p>
               </div>
               <UButton
