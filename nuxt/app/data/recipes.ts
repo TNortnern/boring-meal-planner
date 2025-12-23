@@ -88,6 +88,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'high_protein'],
     source: 'homemade',
     macros: { calories: 540, protein: 44, carbs: 52, fat: 14 },
+    nutrition: { fiber: 4, sugar: 6, sodium: 680, cholesterol: 85, saturatedFat: 3 },
     ingredients: 6
   },
   {
@@ -102,6 +103,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'no_oil'],
     source: 'homemade',
     macros: { calories: 520, protein: 42, carbs: 58, fat: 10 },
+    nutrition: { fiber: 6, sugar: 12, sodium: 380, cholesterol: 85, saturatedFat: 2 },
     ingredients: 4
   },
   {
@@ -116,6 +118,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'budget'],
     source: 'homemade',
     macros: { calories: 580, protein: 48, carbs: 60, fat: 14 },
+    nutrition: { fiber: 9, sugar: 3, sodium: 620, cholesterol: 95, saturatedFat: 3 },
     ingredients: 5
   },
   {
@@ -130,6 +133,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['high_protein', 'meal_prep'],
     source: 'homemade',
     macros: { calories: 510, protein: 46, carbs: 48, fat: 12 },
+    nutrition: { fiber: 6, sugar: 3, sodium: 420, cholesterol: 85, saturatedFat: 2 },
     ingredients: 5
   },
   {
@@ -144,6 +148,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['no_oil', 'budget'],
     source: 'homemade',
     macros: { calories: 380, protein: 45, carbs: 15, fat: 12 },
+    nutrition: { fiber: 4, sugar: 2, sodium: 340, cholesterol: 85, saturatedFat: 2 },
     ingredients: 3
   },
   {
@@ -158,6 +163,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'high_protein'],
     source: 'homemade',
     macros: { calories: 620, protein: 48, carbs: 65, fat: 16 },
+    nutrition: { fiber: 11, sugar: 4, sodium: 780, cholesterol: 95, saturatedFat: 4 },
     ingredients: 7
   },
   {
@@ -596,6 +602,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'budget', 'high_protein'],
     source: 'homemade',
     macros: { calories: 600, protein: 44, carbs: 55, fat: 20 },
+    nutrition: { fiber: 1, sugar: 1, sodium: 480, cholesterol: 95, saturatedFat: 7 },
     ingredients: 3
   },
   {
@@ -638,6 +645,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep'],
     source: 'homemade',
     macros: { calories: 640, protein: 42, carbs: 65, fat: 22 },
+    nutrition: { fiber: 6, sugar: 8, sodium: 720, cholesterol: 110, saturatedFat: 8 },
     ingredients: 7
   },
   {
@@ -666,6 +674,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'high_protein'],
     source: 'homemade',
     macros: { calories: 680, protein: 46, carbs: 62, fat: 24 },
+    nutrition: { fiber: 10, sugar: 4, sodium: 890, cholesterol: 95, saturatedFat: 9 },
     ingredients: 7
   },
   {
@@ -850,6 +859,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['microwave', 'budget', 'meal_prep'],
     source: 'homemade',
     macros: { calories: 420, protein: 38, carbs: 48, fat: 8 },
+    nutrition: { fiber: 2, sugar: 2, sodium: 580, cholesterol: 45, saturatedFat: 1 },
     ingredients: 4
   },
   {
@@ -1062,6 +1072,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['no_oil', 'budget'],
     source: 'homemade',
     macros: { calories: 380, protein: 35, carbs: 35, fat: 10 },
+    nutrition: { fiber: 5, sugar: 2, sodium: 320, cholesterol: 0, saturatedFat: 2 },
     ingredients: 5
   },
   {
@@ -1428,6 +1439,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['budget', 'high_protein'],
     source: 'homemade',
     macros: { calories: 680, protein: 48, carbs: 62, fat: 26 },
+    nutrition: { fiber: 3, sugar: 4, sodium: 520, cholesterol: 95, saturatedFat: 5 },
     ingredients: 4
   },
   {
