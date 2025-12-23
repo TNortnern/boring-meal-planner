@@ -298,6 +298,9 @@ const finishWorkout = async () => {
     // Mark workout as completed in progress log with session data
     await progressLogs.markWorkoutCompleted(true, workoutData)
 
+    // Refresh logs to update workout history display
+    await progressLogs.fetchLogs()
+
     toast.add({
       title: 'Workout Complete',
       description: `Great work! You completed ${completedSets} of ${totalSets} sets.`,
@@ -673,12 +676,12 @@ watch(isAuthenticated, async (authenticated) => {
             </div>
 
             <!-- Workout History List -->
-            <div v-if="progressLogs.workoutHistoryThisWeek.value.length > 0" class="mt-5 pt-5 border-t border-primary/10">
+            <div class="mt-5 pt-5 border-t border-primary/10">
               <div class="flex items-center gap-2 mb-3">
                 <UIcon name="i-lucide-history" class="w-4 h-4 text-muted" />
                 <span class="text-xs font-semibold uppercase tracking-wider text-muted">Recent Workouts</span>
               </div>
-              <div class="space-y-2">
+              <div v-if="progressLogs.workoutHistoryThisWeek.value.length > 0" class="space-y-2">
                 <div
                   v-for="workout in progressLogs.workoutHistoryThisWeek.value.slice(0, 5)"
                   :key="workout.id"
@@ -699,6 +702,15 @@ watch(isAuthenticated, async (authenticated) => {
                     {{ workout.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) }}
                   </div>
                 </div>
+              </div>
+              <div v-else class="text-center py-4 text-sm text-muted">
+                <UIcon name="i-lucide-calendar-x" class="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>
+                  No workouts completed this week
+                </p>
+                <p class="text-xs mt-1">
+                  Start a workout to track your progress
+                </p>
               </div>
             </div>
           </div>
@@ -834,8 +846,8 @@ watch(isAuthenticated, async (authenticated) => {
                   </div>
 
                   <!-- Actions -->
-                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <UPopover v-if="exercise.instructions || exercise.videoUrl" :content="{ side: 'top', align: 'end' }">
+                  <div class="flex items-center gap-1">
+                    <UPopover :content="{ side: 'top', align: 'end' }">
                       <UButton
                         variant="ghost"
                         color="neutral"
@@ -844,7 +856,18 @@ watch(isAuthenticated, async (authenticated) => {
                       />
                       <template #content>
                         <div class="p-3 max-w-xs space-y-2">
-                          <p v-if="exercise.instructions" class="text-sm text-muted">
+                          <div class="font-medium text-sm mb-2">
+                            {{ exercise.name }}
+                          </div>
+                          <div class="text-xs text-muted space-y-1">
+                            <p>
+                              {{ exercise.sets }} sets × {{ exercise.reps }} reps
+                            </p>
+                            <p v-if="exercise.targetWeight > 0">
+                              Target: {{ exercise.targetWeight }} lbs
+                            </p>
+                          </div>
+                          <p v-if="exercise.instructions" class="text-sm text-muted border-t border-default pt-2 mt-2">
                             {{ exercise.instructions }}
                           </p>
                           <a
