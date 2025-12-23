@@ -214,6 +214,9 @@ const _useProgressLogs = () => {
 
   // Mark workout as completed with optional session data
   const markWorkoutCompleted = async (completed: boolean, workoutData?: WorkoutSessionData) => {
+    console.log('[ProgressLogs] markWorkoutCompleted called')
+    console.log('[ProgressLogs] user.value:', user.value)
+    console.log('[ProgressLogs] user.value?.id:', user.value?.id)
     if (!user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()

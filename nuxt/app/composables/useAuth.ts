@@ -79,6 +79,7 @@ const _useAuth = () => {
 
   // Fetch current user from Payload
   const fetchUser = async () => {
+    console.log('[Auth] fetchUser called, token exists:', !!token.value)
     if (!token.value) return null
 
     try {
@@ -87,6 +88,7 @@ const _useAuth = () => {
           Authorization: `JWT ${token.value}`
         }
       })
+      console.log('[Auth] fetchUser success, user:', response.user?.email, 'id:', response.user?.id)
       user.value = response.user
       return response.user
     } catch {
@@ -196,11 +198,14 @@ const _useAuth = () => {
 
   // Initialize auth state on mount
   const init = async () => {
+    console.log('[Auth] init called')
     // Load token from localStorage first (client-side only)
     loadToken()
+    console.log('[Auth] after loadToken, token exists:', !!token.value)
     if (token.value) {
       await fetchUser()
     }
+    console.log('[Auth] init complete, user:', user.value?.email, 'id:', user.value?.id)
   }
 
   return {
