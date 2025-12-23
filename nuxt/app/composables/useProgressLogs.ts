@@ -474,6 +474,32 @@ const _useProgressLogs = () => {
     }).length
   })
 
+  // Computed: workout history this week with full data
+  const workoutHistoryThisWeek = computed(() => {
+    if (!isClient.value) return [] // Return empty during SSR
+
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    weekAgo.setHours(0, 0, 0, 0)
+
+    return logs.value
+      .filter((log) => {
+        const logDate = new Date(log.date)
+        return log.workoutCompleted && logDate >= weekAgo
+      })
+      .map(log => ({
+        id: log.id,
+        date: new Date(log.date),
+        dayName: log.workoutData?.dayName || 'Workout',
+        exerciseCount: log.workoutData?.exercises?.length || 0,
+        totalSets: log.workoutData?.exercises?.reduce((sum, ex) =>
+          sum + (ex.sets?.length || 0), 0) || 0,
+        startedAt: log.workoutData?.startedAt,
+        finishedAt: log.workoutData?.finishedAt
+      }))
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+  })
+
   // Add a progress photo to the current day's log
   const addProgressPhoto = async (url: string, type: 'front' | 'side' | 'back' = 'front') => {
     if (!user.value) return { success: false, error: 'Not authenticated' }
@@ -545,6 +571,7 @@ const _useProgressLogs = () => {
     weightHistory,
     currentWeight,
     workoutsThisWeek,
+    workoutHistoryThisWeek,
     getTodayPurchasedItems,
     checkInHistory,
     latestMeasurement,

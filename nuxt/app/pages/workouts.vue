@@ -337,16 +337,6 @@ const initWorkingSetData = (exerciseName: string, setNumber: number, targetWeigh
   }
 }
 
-const expandedExercise = ref<string | null>(null)
-
-const toggleExerciseExpanded = (exerciseName: string) => {
-  if (expandedExercise.value === exerciseName) {
-    expandedExercise.value = null
-  } else {
-    expandedExercise.value = exerciseName
-  }
-}
-
 // View workout details modal
 const viewWorkoutDetailsOpen = ref(false)
 
@@ -681,6 +671,36 @@ watch(isAuthenticated, async (authenticated) => {
                 </div>
               </button>
             </div>
+
+            <!-- Workout History List -->
+            <div v-if="progressLogs.workoutHistoryThisWeek.value.length > 0" class="mt-5 pt-5 border-t border-primary/10">
+              <div class="flex items-center gap-2 mb-3">
+                <UIcon name="i-lucide-history" class="w-4 h-4 text-muted" />
+                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Recent Workouts</span>
+              </div>
+              <div class="space-y-2">
+                <div
+                  v-for="workout in progressLogs.workoutHistoryThisWeek.value.slice(0, 5)"
+                  :key="workout.id"
+                  class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+                >
+                  <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
+                    <UIcon name="i-lucide-check" class="w-4 h-4 text-success" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium text-sm truncate">
+                      {{ workout.dayName }}
+                    </div>
+                    <div class="text-xs text-muted">
+                      {{ workout.exerciseCount }} exercises · {{ workout.totalSets }} sets
+                    </div>
+                  </div>
+                  <div class="text-xs text-muted flex-shrink-0">
+                    {{ workout.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -815,13 +835,30 @@ watch(isAuthenticated, async (authenticated) => {
 
                   <!-- Actions -->
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <UButton
-                      variant="ghost"
-                      color="neutral"
-                      :icon="expandedExercise === exercise.name ? 'i-lucide-chevron-up' : 'i-lucide-info'"
-                      size="xs"
-                      @click="toggleExerciseExpanded(exercise.name)"
-                    />
+                    <UPopover v-if="exercise.instructions || exercise.videoUrl" :content="{ side: 'top', align: 'end' }">
+                      <UButton
+                        variant="ghost"
+                        color="neutral"
+                        icon="i-lucide-info"
+                        size="xs"
+                      />
+                      <template #content>
+                        <div class="p-3 max-w-xs space-y-2">
+                          <p v-if="exercise.instructions" class="text-sm text-muted">
+                            {{ exercise.instructions }}
+                          </p>
+                          <a
+                            v-if="exercise.videoUrl"
+                            :href="exercise.videoUrl"
+                            target="_blank"
+                            class="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            <UIcon name="i-lucide-play-circle" class="w-4 h-4" />
+                            Watch Video
+                          </a>
+                        </div>
+                      </template>
+                    </UPopover>
                     <UButton
                       variant="ghost"
                       color="neutral"
@@ -831,28 +868,6 @@ watch(isAuthenticated, async (authenticated) => {
                     />
                   </div>
                 </div>
-              </div>
-
-              <!-- Expanded details (inline, compact) -->
-              <div
-                v-if="expandedExercise === exercise.name"
-                class="px-4 pb-3 pt-2 border-t border-default bg-muted/5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
-              >
-                <span v-if="exercise.instructions" class="text-muted">
-                  {{ exercise.instructions }}
-                </span>
-                <a
-                  v-if="exercise.videoUrl"
-                  :href="exercise.videoUrl"
-                  target="_blank"
-                  class="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  <UIcon name="i-lucide-play-circle" class="w-4 h-4" />
-                  Video
-                </a>
-                <span v-if="!exercise.instructions && !exercise.videoUrl" class="text-muted italic">
-                  No notes. Click edit to add.
-                </span>
               </div>
             </div>
           </div>
