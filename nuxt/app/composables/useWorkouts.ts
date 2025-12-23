@@ -46,6 +46,8 @@ const _useWorkouts = () => {
   // Use refs instead of useLocalStorage to avoid SSR hydration mismatches
   const boringMode = ref(true)
   const isInitialized = ref(false)
+  // Track if we're on client side to avoid SSR hydration mismatches with Date
+  const isClient = ref(false)
 
   // Default workout plan
   const defaultPlan: WorkoutPlan = {
@@ -129,6 +131,7 @@ const _useWorkouts = () => {
 
   // Load state from localStorage (client-side only)
   const loadFromStorage = () => {
+    isClient.value = true // Mark as client-side to enable Date-dependent computed properties
     if (import.meta.client && !isInitialized.value) {
       // Load boring mode
       const storedBoringMode = localStorage.getItem('workouts-boring-mode')
@@ -273,9 +276,15 @@ const _useWorkouts = () => {
     })
   }
 
-  // Get workout stats
+  // Get workout stats - only evaluate date comparisons on client to avoid SSR hydration mismatches
   const workoutStats = computed(() => {
     const total = workoutHistory.value.length
+
+    // Return safe defaults during SSR
+    if (!isClient.value) {
+      return { total, thisWeek: 0, thisMonth: 0 }
+    }
+
     const thisWeek = workoutHistory.value.filter((session) => {
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
