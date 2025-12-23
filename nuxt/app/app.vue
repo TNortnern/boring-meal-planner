@@ -2,7 +2,17 @@
 const colorMode = useColorMode()
 const appConfig = useAppConfig()
 
-const color = computed(() => colorMode.value === 'dark' ? '#1c1917' : '#fafaf9')
+// Track client-side to avoid hydration mismatch with colorMode
+const isClient = ref(false)
+onMounted(() => {
+  isClient.value = true
+})
+
+// Use isClient guard to avoid SSR/client hydration mismatch
+const color = computed(() => {
+  if (!isClient.value) return '#fafaf9' // Default to light during SSR
+  return colorMode.value === 'dark' ? '#1c1917' : '#fafaf9'
+})
 
 useHead({
   meta: [
