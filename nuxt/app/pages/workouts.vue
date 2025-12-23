@@ -296,7 +296,9 @@ const finishWorkout = async () => {
     }
 
     // Mark workout as completed in progress log with session data
+    console.log('[Workout] Calling markWorkoutCompleted...')
     const result = await progressLogs.markWorkoutCompleted(true, workoutData)
+    console.log('[Workout] markWorkoutCompleted result:', JSON.stringify(result, null, 2))
 
     if (!result || !result.success) {
       const errorMsg = result?.error || 'Unknown error saving workout'
@@ -310,7 +312,11 @@ const finishWorkout = async () => {
     }
 
     // Refresh logs to update workout history display
+    console.log('[Workout] Fetching logs...')
     await progressLogs.fetchLogs()
+    console.log('[Workout] Logs count after fetch:', progressLogs.logs.value.length)
+    console.log('[Workout] Logs with workoutCompleted:', progressLogs.logs.value.filter(l => l.workoutCompleted).length)
+    console.log('[Workout] workoutHistoryThisWeek count:', progressLogs.workoutHistoryThisWeek.value.length)
 
     toast.add({
       title: 'Workout Complete',

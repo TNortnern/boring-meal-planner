@@ -106,6 +106,13 @@ export const ProgressLogs: CollectionConfig = {
       defaultValue: false
     },
     {
+      name: 'workoutData',
+      type: 'json',
+      admin: {
+        description: 'Structured workout session data including exercises, sets, reps, and weights'
+      }
+    },
+    {
       name: 'cardioCompleted',
       type: 'checkbox',
       defaultValue: false
