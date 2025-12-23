@@ -460,8 +460,10 @@ const _useProgressLogs = () => {
     return sorted[0]?.weight || 0
   })
 
-  // Computed: workouts completed this week
+  // Computed: workouts completed this week - only evaluate on client to avoid SSR hydration mismatches
   const workoutsThisWeek = computed(() => {
+    if (!isClient.value) return 0 // Return 0 during SSR
+
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
     weekAgo.setHours(0, 0, 0, 0)
