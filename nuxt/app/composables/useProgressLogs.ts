@@ -86,7 +86,8 @@ export interface CreateProgressLogInput {
 }
 
 const _useProgressLogs = () => {
-  const { user } = useAuth()
+  // Get auth composable - access user.value directly when needed to ensure fresh state
+  const auth = useAuth()
 
   const logs = ref<ProgressLog[]>([])
   const isLoading = ref(false)
@@ -96,14 +97,14 @@ const _useProgressLogs = () => {
 
   // Fetch all progress logs for current user
   const fetchLogs = async (startDate?: Date, endDate?: Date) => {
-    if (!user.value) return
+    if (!auth.user.value) return
 
     isLoading.value = true
     error.value = null
 
     try {
       const query: Record<string, string | number | boolean | undefined> = {
-        'where[user][equals]': user.value.id,
+        'where[user][equals]': auth.user.value.id,
         'sort': '-date',
         'limit': 100
       }
@@ -136,7 +137,7 @@ const _useProgressLogs = () => {
 
   // Create a new progress log
   const createLog = async (data: CreateProgressLogInput) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     isLoading.value = true
     error.value = null
@@ -144,7 +145,7 @@ const _useProgressLogs = () => {
     try {
       const result = await apiPost<PayloadDocResponse<ProgressLog>>('/api/progress-logs', {
         ...data,
-        user: user.value.id,
+        user: auth.user.value.id,
         date: formatDateForPayload(data.date)
       })
 
@@ -185,7 +186,7 @@ const _useProgressLogs = () => {
 
   // Mark a meal as eaten/not eaten for today
   const markMealEaten = async (slot: string, eaten: boolean, recipeId?: number) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     let todayLog = getTodayLog.value
@@ -215,9 +216,9 @@ const _useProgressLogs = () => {
   // Mark workout as completed with optional session data
   const markWorkoutCompleted = async (completed: boolean, workoutData?: WorkoutSessionData) => {
     console.log('[ProgressLogs] markWorkoutCompleted called')
-    console.log('[ProgressLogs] user.value:', user.value)
-    console.log('[ProgressLogs] user.value?.id:', user.value?.id)
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    console.log('[ProgressLogs] auth.user.value:', auth.user.value)
+    console.log('[ProgressLogs] auth.user.value?.id:', auth.user.value?.id)
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     const todayLog = getTodayLog.value
@@ -241,7 +242,7 @@ const _useProgressLogs = () => {
 
   // Mark cardio as completed
   const markCardioCompleted = async (completed: boolean, minutes?: number) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     const todayLog = getTodayLog.value
@@ -260,7 +261,7 @@ const _useProgressLogs = () => {
 
   // Update steps for today
   const updateSteps = async (steps: number) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     const todayLog = getTodayLog.value
@@ -275,7 +276,7 @@ const _useProgressLogs = () => {
 
   // Toggle shopping list item purchased state
   const toggleShoppingItem = async (ingredientName: string, purchased: boolean) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     let todayLog = getTodayLog.value
@@ -316,7 +317,7 @@ const _useProgressLogs = () => {
     notes?: string
     isCheckInDay?: boolean
   }) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     let todayLog = getTodayLog.value
@@ -348,7 +349,7 @@ const _useProgressLogs = () => {
 
   // Update weight for a specific date (used for historical entries)
   const addWeightForDate = async (weight: number, unit: 'kg' | 'lbs', date: Date) => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     // Check if a log exists for this date
     const existingLog = logs.value.find(log => isSameDay(new Date(log.date), date))
@@ -505,7 +506,7 @@ const _useProgressLogs = () => {
 
   // Add a progress photo to the current day's log
   const addProgressPhoto = async (url: string, type: 'front' | 'side' | 'back' = 'front') => {
-    if (!user.value) return { success: false, error: 'Not authenticated' }
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     let todayLog = getTodayLog.value
@@ -557,7 +558,7 @@ const _useProgressLogs = () => {
   const init = async () => {
     // Mark that we're on client side (for Date-dependent computed properties)
     isClient.value = true
-    if (user.value) {
+    if (auth.user.value) {
       await fetchLogs()
     }
   }
