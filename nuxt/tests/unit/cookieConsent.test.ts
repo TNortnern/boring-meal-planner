@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { _resetCookieConsentState } from '~/composables/useCookieConsent'
 
 describe('useCookieConsent', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear()
+    // Reset the module's initialization state
+    _resetCookieConsentState()
     vi.clearAllMocks()
   })
 
@@ -12,11 +15,16 @@ describe('useCookieConsent', () => {
     expect(consentStatus.value).toBeNull()
   })
 
-  it('loads stored consent preference immediately', () => {
+  it('loads stored consent preference when init is called', () => {
     localStorage.setItem('boring-cookie-consent', 'accepted')
 
-    const { consentStatus, hasConsent } = useCookieConsent()
+    const { consentStatus, hasConsent, init } = useCookieConsent()
 
+    // Before init, should be null (SSR-safe default)
+    expect(consentStatus.value).toBeNull()
+
+    // After init, should load from localStorage
+    init()
     expect(consentStatus.value).toBe('accepted')
     expect(hasConsent.value).toBe(true)
   })
@@ -68,10 +76,13 @@ describe('useCookieConsent', () => {
     expect(needsConsent.value).toBe(true)
   })
 
-  it('handles declined status correctly', () => {
+  it('handles declined status correctly after init', () => {
     localStorage.setItem('boring-cookie-consent', 'declined')
 
-    const { hasConsent, hasDeclined, needsConsent } = useCookieConsent()
+    const { hasConsent, hasDeclined, needsConsent, init } = useCookieConsent()
+
+    // Load from localStorage
+    init()
 
     expect(hasConsent.value).toBe(false)
     expect(hasDeclined.value).toBe(true)
