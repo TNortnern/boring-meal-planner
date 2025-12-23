@@ -82,6 +82,8 @@ const _useMealPlans = () => {
   const allPlans = ref<MealPlan[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  // Track if we're on client side to avoid SSR hydration mismatches with Date
+  const isClient = ref(false)
 
   // Fetch the active meal plan for current user
   const fetchActivePlan = async () => {
@@ -357,9 +359,10 @@ const _useMealPlans = () => {
     })
   }
 
-  // Get today's meals based on rotation type
+  // Get today's meals based on rotation type - only evaluate on client to avoid SSR hydration mismatches
   const getTodaysMeals = computed(() => {
     if (!activePlan.value) return []
+    if (!isClient.value) return [] // Return empty during SSR to avoid Date mismatch
 
     const today = new Date()
     const dayOfWeek = today.getDay()
@@ -382,14 +385,16 @@ const _useMealPlans = () => {
     return customDay?.meals || activePlan.value.dayA?.meals || []
   })
 
-  // Check if today is Day A or Day B
+  // Check if today is Day A or Day B - only evaluate on client to avoid SSR hydration mismatches
   const isABDayA = computed(() => {
+    if (!isClient.value) return true // Default during SSR
     const today = new Date()
     return today.getDay() % 2 === 0
   })
 
   // Initialize
   const init = async () => {
+    isClient.value = true // Mark as client-side to enable Date-dependent computed properties
     if (user.value) {
       await fetchActivePlan()
     }
