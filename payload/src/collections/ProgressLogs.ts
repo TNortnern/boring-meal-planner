@@ -105,13 +105,14 @@ export const ProgressLogs: CollectionConfig = {
       type: 'checkbox',
       defaultValue: false
     },
-    {
-      name: 'workoutData',
-      type: 'json',
-      admin: {
-        description: 'Structured workout session data including exercises, sets, reps, and weights'
-      }
-    },
+    // TODO: Re-add workoutData with proper migration - column doesn't exist in production
+    // {
+    //   name: 'workoutData',
+    //   type: 'json',
+    //   admin: {
+    //     description: 'Structured workout session data including exercises, sets, reps, and weights'
+    //   }
+    // },
     {
       name: 'cardioCompleted',
       type: 'checkbox',

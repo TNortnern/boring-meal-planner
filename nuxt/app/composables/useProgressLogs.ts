@@ -50,7 +50,8 @@ export interface ProgressLog {
     fat?: number
   }
   workoutCompleted?: boolean
-  workoutData?: WorkoutSessionData
+  // TODO: Re-enable when workoutData column is added to production DB
+  // workoutData?: WorkoutSessionData
   cardioCompleted?: boolean
   cardioMinutes?: number
   notes?: string
@@ -79,7 +80,8 @@ export interface CreateProgressLogInput {
   steps?: number
   mealsEaten?: ProgressLog['mealsEaten']
   workoutCompleted?: boolean
-  workoutData?: WorkoutSessionData
+  // TODO: Re-enable when workoutData column is added to production DB
+  // workoutData?: WorkoutSessionData
   cardioCompleted?: boolean
   cardioMinutes?: number
   notes?: string
@@ -214,8 +216,9 @@ const _useProgressLogs = () => {
     return updateLog(todayLog.id, { mealsEaten })
   }
 
-  // Mark workout as completed with optional session data
-  const markWorkoutCompleted = async (completed: boolean, workoutData?: WorkoutSessionData) => {
+  // Mark workout as completed
+  // TODO: Re-add workoutData parameter when column is added to production DB
+  const markWorkoutCompleted = async (completed: boolean, _workoutData?: WorkoutSessionData) => {
     console.log('[ProgressLogs] markWorkoutCompleted called')
     console.log('[ProgressLogs] auth.user.value:', auth.user.value)
     console.log('[ProgressLogs] auth.user.value?.id:', auth.user.value?.id)
@@ -227,18 +230,20 @@ const _useProgressLogs = () => {
     if (!todayLog) {
       const createResult = await createLog({
         date: today,
-        workoutCompleted: completed,
-        workoutData
+        workoutCompleted: completed
+        // workoutData - disabled until DB column exists
       })
       return createResult
     }
 
-    return updateLog(todayLog.id, { workoutCompleted: completed, workoutData })
+    return updateLog(todayLog.id, { workoutCompleted: completed })
   }
 
   // Get today's workout data if exists
+  // TODO: Re-enable when workoutData column is added to production DB
   const getTodayWorkoutData = computed(() => {
-    return getTodayLog.value?.workoutData || null
+    // return getTodayLog.value?.workoutData || null
+    return null
   })
 
   // Mark cardio as completed
@@ -480,6 +485,7 @@ const _useProgressLogs = () => {
   })
 
   // Computed: workout history this week with full data
+  // TODO: Re-enable workoutData fields when column is added to production DB
   const workoutHistoryThisWeek = computed(() => {
     if (!isClient.value) return [] // Return empty during SSR
 
@@ -495,12 +501,11 @@ const _useProgressLogs = () => {
       .map(log => ({
         id: log.id,
         date: new Date(log.date),
-        dayName: log.workoutData?.dayName || 'Workout',
-        exerciseCount: log.workoutData?.exercises?.length || 0,
-        totalSets: log.workoutData?.exercises?.reduce((sum, ex) =>
-          sum + (ex.sets?.length || 0), 0) || 0,
-        startedAt: log.workoutData?.startedAt,
-        finishedAt: log.workoutData?.finishedAt
+        dayName: 'Workout', // workoutData disabled
+        exerciseCount: 0, // workoutData disabled
+        totalSets: 0, // workoutData disabled
+        startedAt: undefined, // workoutData disabled
+        finishedAt: undefined // workoutData disabled
       }))
       .sort((a, b) => b.date.getTime() - a.date.getTime())
   })

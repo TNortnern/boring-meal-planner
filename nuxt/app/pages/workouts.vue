@@ -362,58 +362,16 @@ const initWorkingSetData = (exerciseName: string, setNumber: number, targetWeigh
 const viewWorkoutDetailsOpen = ref(false)
 
 // Get saved workout data for today
-const todayWorkoutData = computed(() => {
-  return progressLogs.getTodayWorkoutData.value
-})
+// TODO: Re-enable when workoutData field is added to production DB
+// const todayWorkoutData = computed(() => {
+//   return progressLogs.getTodayWorkoutData.value
+// })
 
 // Resume editing a completed workout
+// TODO: Re-enable workout data restoration when workoutData field is added to production DB
 const resumeCompletedWorkout = () => {
-  const workoutData = todayWorkoutData.value
-  const day = currentDay.value
-  if (!workoutData || !day) {
-    // Just start fresh if no data
-    startActiveWorkout()
-    return
-  }
-
-  // Rebuild active session from saved data
-  const exercises: SessionExercise[] = []
-  day.exercises.forEach((exercise) => {
-    const savedExercise = workoutData.exercises.find(e => e.exerciseName === exercise.name)
-    for (let i = 0; i < exercise.sets; i++) {
-      const savedSet = savedExercise?.sets.find(s => s.setNumber === i + 1)
-      exercises.push({
-        exerciseName: exercise.name,
-        setNumber: i + 1,
-        completed: savedSet?.completed || false,
-        actualReps: savedSet?.reps,
-        actualWeight: savedSet?.weight
-      })
-    }
-  })
-
-  activeSession.value = {
-    id: `session-${Date.now()}`,
-    date: workoutData.startedAt ? new Date(workoutData.startedAt) : new Date(),
-    dayName: workoutData.dayName,
-    exercises,
-    completed: false
-  }
-
-  // Restore working set data
-  workingSetData.value = {}
-  workoutData.exercises.forEach((exercise) => {
-    const exerciseData: { [setNum: number]: { reps: number, weight: number } } = {}
-    exercise.sets.forEach((set) => {
-      exerciseData[set.setNumber] = {
-        reps: set.reps,
-        weight: set.weight
-      }
-    })
-    workingSetData.value[exercise.exerciseName] = exerciseData
-  })
-
-  activeWorkoutOpen.value = true
+  // workoutData is disabled, just start fresh
+  startActiveWorkout()
 }
 
 // Add exercise modal
@@ -1303,9 +1261,6 @@ watch(isAuthenticated, async (authenticated) => {
                 <h3 class="text-lg font-semibold">
                   Today's Workout Summary
                 </h3>
-                <p v-if="todayWorkoutData" class="text-sm text-muted">
-                  {{ todayWorkoutData.dayName }} · Completed {{ todayWorkoutData.finishedAt ? new Date(todayWorkoutData.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'today' }}
-                </p>
               </div>
               <UButton
                 icon="i-lucide-x"
@@ -1317,63 +1272,15 @@ watch(isAuthenticated, async (authenticated) => {
             </div>
           </template>
 
-          <div v-if="todayWorkoutData" class="space-y-4 max-h-[60vh] overflow-y-auto">
-            <div
-              v-for="exercise in todayWorkoutData.exercises"
-              :key="exercise.exerciseName"
-              class="p-4 rounded-xl bg-elevated border border-default"
-            >
-              <div class="flex items-center justify-between mb-3">
-                <div class="font-medium">
-                  {{ exercise.exerciseName }}
-                </div>
-                <UBadge
-                  :color="exercise.sets.filter(s => s.completed).length === exercise.sets.length ? 'success' : 'warning'"
-                  variant="subtle"
-                  size="sm"
-                >
-                  {{ exercise.sets.filter(s => s.completed).length }}/{{ exercise.sets.length }} sets
-                </UBadge>
-              </div>
-
-              <div class="space-y-1.5">
-                <div
-                  v-for="set in exercise.sets"
-                  :key="set.setNumber"
-                  class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm"
-                  :class="set.completed ? 'bg-success/10' : 'bg-muted/20'"
-                >
-                  <span class="font-medium text-muted w-14">Set {{ set.setNumber }}</span>
-                  <span v-if="set.completed" class="flex items-center gap-2">
-                    <span class="font-semibold">{{ set.reps }}</span>
-                    <span class="text-muted">reps</span>
-                    <span class="text-muted">@</span>
-                    <span class="font-semibold">{{ set.weight }}</span>
-                    <span class="text-muted">lbs</span>
-                  </span>
-                  <span v-else class="text-muted italic">Not completed</span>
-                  <UIcon
-                    v-if="set.completed"
-                    name="i-lucide-check-circle"
-                    class="w-4 h-4 text-success ml-auto"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div v-if="todayWorkoutData.notes" class="p-4 rounded-xl bg-muted/10 border border-muted">
-              <div class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
-                Notes
-              </div>
-              <p class="text-sm">
-                {{ todayWorkoutData.notes }}
-              </p>
-            </div>
-          </div>
-
-          <div v-else class="py-8 text-center text-muted">
-            <UIcon name="i-lucide-file-x" class="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No workout data saved for today.</p>
+          <!-- TODO: Re-enable detailed workout view when workoutData field is added to production DB -->
+          <div class="py-8 text-center text-muted">
+            <UIcon name="i-lucide-check-circle" class="w-12 h-12 mx-auto mb-3 text-success opacity-70" />
+            <p class="font-medium text-default mb-1">
+              Workout Completed!
+            </p>
+            <p class="text-sm">
+              Detailed exercise data coming soon.
+            </p>
           </div>
 
           <template #footer>
