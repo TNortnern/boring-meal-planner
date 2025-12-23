@@ -50,21 +50,19 @@ export interface ProgressLog {
     fat?: number
   }
   workoutCompleted?: boolean
-  // TODO: Re-enable when workoutData column is added to production DB
-  // workoutData?: WorkoutSessionData
+  workoutData?: WorkoutSessionData
   cardioCompleted?: boolean
   cardioMinutes?: number
   notes?: string
   isCheckInDay?: boolean
   photo?: number | string
   shoppingListPurchased?: string[]
-  // TODO: Re-enable when progressPhotos is added back to backend
-  // progressPhotos?: Array<{
-  //   id?: string
-  //   url: string
-  //   type: 'front' | 'side' | 'back'
-  //   uploadedAt?: string
-  // }>
+  progressPhotos?: Array<{
+    id?: string
+    url: string
+    type: 'front' | 'side' | 'back'
+    uploadedAt?: string
+  }>
   measurements?: {
     chest?: number
     arms?: number
@@ -80,8 +78,7 @@ export interface CreateProgressLogInput {
   steps?: number
   mealsEaten?: ProgressLog['mealsEaten']
   workoutCompleted?: boolean
-  // TODO: Re-enable when workoutData column is added to production DB
-  // workoutData?: WorkoutSessionData
+  workoutData?: WorkoutSessionData
   cardioCompleted?: boolean
   cardioMinutes?: number
   notes?: string
@@ -217,8 +214,7 @@ const _useProgressLogs = () => {
   }
 
   // Mark workout as completed
-  // TODO: Re-add workoutData parameter when column is added to production DB
-  const markWorkoutCompleted = async (completed: boolean, _workoutData?: WorkoutSessionData) => {
+  const markWorkoutCompleted = async (completed: boolean, workoutData?: WorkoutSessionData) => {
     console.log('[ProgressLogs] markWorkoutCompleted called')
     console.log('[ProgressLogs] auth.user.value:', auth.user.value)
     console.log('[ProgressLogs] auth.user.value?.id:', auth.user.value?.id)
@@ -230,20 +226,18 @@ const _useProgressLogs = () => {
     if (!todayLog) {
       const createResult = await createLog({
         date: today,
-        workoutCompleted: completed
-        // workoutData - disabled until DB column exists
+        workoutCompleted: completed,
+        workoutData
       })
       return createResult
     }
 
-    return updateLog(todayLog.id, { workoutCompleted: completed })
+    return updateLog(todayLog.id, { workoutCompleted: completed, workoutData })
   }
 
   // Get today's workout data if exists
-  // TODO: Re-enable when workoutData column is added to production DB
   const getTodayWorkoutData = computed(() => {
-    // return getTodayLog.value?.workoutData || null
-    return null
+    return getTodayLog.value?.workoutData || null
   })
 
   // Mark cardio as completed
@@ -485,7 +479,6 @@ const _useProgressLogs = () => {
   })
 
   // Computed: workout history this week with full data
-  // TODO: Re-enable workoutData fields when column is added to production DB
   const workoutHistoryThisWeek = computed(() => {
     if (!isClient.value) return [] // Return empty during SSR
 
@@ -501,56 +494,55 @@ const _useProgressLogs = () => {
       .map(log => ({
         id: log.id,
         date: new Date(log.date),
-        dayName: 'Workout', // workoutData disabled
-        exerciseCount: 0, // workoutData disabled
-        totalSets: 0, // workoutData disabled
-        startedAt: undefined, // workoutData disabled
-        finishedAt: undefined // workoutData disabled
+        dayName: log.workoutData?.dayName || 'Workout',
+        exerciseCount: log.workoutData?.exercises?.length || 0,
+        totalSets: log.workoutData?.exercises?.reduce((sum, e) => sum + e.sets.length, 0) || 0,
+        startedAt: log.workoutData?.startedAt,
+        finishedAt: log.workoutData?.finishedAt
       }))
       .sort((a, b) => b.date.getTime() - a.date.getTime())
   })
 
-  // TODO: Re-enable when progressPhotos is added back to backend
   // Add a progress photo to the current day's log
-  // const addProgressPhoto = async (url: string, type: 'front' | 'side' | 'back' = 'front') => {
-  //   if (!auth.user.value) return { success: false, error: 'Not authenticated' }
-  //   const today = new Date()
-  //   let todayLog = getTodayLog.value
-  //   if (!todayLog) {
-  //     const createResult = await createLog({ date: today })
-  //     if (!createResult.success) return createResult
-  //     todayLog = createResult.data
-  //   }
-  //   if (!todayLog) return { success: false, error: 'Failed to get today\'s log' }
-  //   const currentPhotos = todayLog.progressPhotos || []
-  //   const newPhoto = {
-  //     id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  //     url,
-  //     type,
-  //     uploadedAt: formatDateForPayload(new Date())
-  //   }
-  //   return updateLog(todayLog.id, {
-  //     progressPhotos: [...currentPhotos, newPhoto]
-  //   })
-  // }
+  const addProgressPhoto = async (url: string, type: 'front' | 'side' | 'back' = 'front') => {
+    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
+    const today = new Date()
+    let todayLog = getTodayLog.value
+    if (!todayLog) {
+      const createResult = await createLog({ date: today })
+      if (!createResult.success) return createResult
+      todayLog = createResult.data
+    }
+    if (!todayLog) return { success: false, error: 'Failed to get today\'s log' }
+    const currentPhotos = todayLog.progressPhotos || []
+    const newPhoto = {
+      id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      url,
+      type,
+      uploadedAt: formatDateForPayload(new Date())
+    }
+    return updateLog(todayLog.id, {
+      progressPhotos: [...currentPhotos, newPhoto]
+    })
+  }
 
   // Get all progress photos across all logs
-  // const allProgressPhotos = computed(() => {
-  //   const photos: Array<{ id: string, date: Date, type: string, url: string }> = []
-  //   for (const log of logs.value) {
-  //     if (log.progressPhotos) {
-  //       for (const photo of log.progressPhotos) {
-  //         photos.push({
-  //           id: photo.id || `${log.id}-${photo.url}`,
-  //           date: photo.uploadedAt ? new Date(photo.uploadedAt) : new Date(log.date),
-  //           type: photo.type,
-  //           url: photo.url
-  //         })
-  //       }
-  //     }
-  //   }
-  //   return photos.sort((a, b) => b.date.getTime() - a.date.getTime())
-  // })
+  const allProgressPhotos = computed(() => {
+    const photos: Array<{ id: string, date: Date, type: string, url: string }> = []
+    for (const log of logs.value) {
+      if (log.progressPhotos) {
+        for (const photo of log.progressPhotos) {
+          photos.push({
+            id: photo.id || `${log.id}-${photo.url}`,
+            date: photo.uploadedAt ? new Date(photo.uploadedAt) : new Date(log.date),
+            type: photo.type,
+            url: photo.url
+          })
+        }
+      }
+    }
+    return photos.sort((a, b) => b.date.getTime() - a.date.getTime())
+  })
 
   // Initialize - fetch logs on mount
   const init = async () => {
@@ -578,7 +570,7 @@ const _useProgressLogs = () => {
     checkInHistory,
     latestMeasurement,
     firstMeasurement,
-    // allProgressPhotos, // TODO: Re-enable when progressPhotos is added back
+    allProgressPhotos,
 
     // Methods
     fetchLogs,
@@ -592,7 +584,7 @@ const _useProgressLogs = () => {
     toggleShoppingItem,
     addCheckIn,
     addWeightForDate,
-    // addProgressPhoto, // TODO: Re-enable when progressPhotos is added back
+    addProgressPhoto,
     init
   }
 }
