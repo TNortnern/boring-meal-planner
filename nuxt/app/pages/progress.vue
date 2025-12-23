@@ -34,7 +34,8 @@ const measurementHistory = computed(() => {
 })
 
 // Progress photos from API (with localStorage fallback for migration)
-const localProgressPhotos = useLocalStorage<Array<{ id: string, date: Date, type: string, url: string }>>('progress-photos', [])
+// Use ref to avoid SSR/CSR hydration mismatch with localStorage
+const localProgressPhotos = ref<Array<{ id: string, date: Date, type: string, url: string }>>([])
 const progressPhotos = computed(() => {
   // Combine API photos with localStorage fallback
   const apiPhotos = progressLogs.allProgressPhotos.value
@@ -375,6 +376,16 @@ const handlePhotoUpload = async (event: Event) => {
 
 // Initialize API data on mount
 onMounted(async () => {
+  // Load progress photos from localStorage (fallback for migration)
+  const storedPhotos = localStorage.getItem('progress-photos')
+  if (storedPhotos) {
+    try {
+      localProgressPhotos.value = JSON.parse(storedPhotos)
+    } catch {
+      localProgressPhotos.value = []
+    }
+  }
+
   if (isAuthenticated.value) {
     await progressLogs.init()
   }
