@@ -83,15 +83,25 @@ const _useAuth = () => {
     if (!token.value) return null
 
     try {
-      // Payload /users/me returns user object directly (not wrapped in { user: ... })
-      const response = await $fetch<User>(`${apiBase}/users/me`, {
+      // Payload /users/me returns { message: "Account", user: User | null }
+      const response = await $fetch<{ message: string, user: User | null }>(`${apiBase}/users/me`, {
         headers: {
           Authorization: `JWT ${token.value}`
         }
       })
-      console.log('[Auth] fetchUser success, user:', response?.email, 'id:', response?.id)
-      user.value = response
-      return response
+      console.log('[Auth] fetchUser response:', JSON.stringify(response))
+
+      // If user is null, token is invalid - clear it
+      if (!response.user) {
+        console.log('[Auth] Token invalid - user is null, clearing token')
+        saveToken(null)
+        user.value = null
+        return null
+      }
+
+      console.log('[Auth] fetchUser success, user:', response.user.email, 'id:', response.user.id)
+      user.value = response.user
+      return response.user
     } catch {
       // Token expired or invalid
       saveToken(null)
