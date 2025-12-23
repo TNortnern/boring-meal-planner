@@ -91,6 +91,8 @@ const _useProgressLogs = () => {
   const logs = ref<ProgressLog[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  // Track if we're on client side to avoid SSR hydration mismatches with Date
+  const isClient = ref(false)
 
   // Fetch all progress logs for current user
   const fetchLogs = async (startDate?: Date, endDate?: Date) => {
@@ -125,8 +127,9 @@ const _useProgressLogs = () => {
     }
   }
 
-  // Get today's log (or create one)
+  // Get today's log (or create one) - only evaluate on client to avoid SSR hydration mismatches
   const getTodayLog = computed(() => {
+    if (!isClient.value) return undefined
     const today = new Date()
     return logs.value.find(log => isSameDay(new Date(log.date), today))
   })
@@ -521,6 +524,8 @@ const _useProgressLogs = () => {
 
   // Initialize - fetch logs on mount
   const init = async () => {
+    // Mark that we're on client side (for Date-dependent computed properties)
+    isClient.value = true
     if (user.value) {
       await fetchLogs()
     }
