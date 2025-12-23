@@ -10,6 +10,12 @@ const appConfig = useAppConfig()
 const { user: authUser, logout } = useAuth()
 const router = useRouter()
 
+// Track client-side to avoid hydration mismatch with colorMode
+const isClient = ref(false)
+onMounted(() => {
+  isClient.value = true
+})
+
 const colors = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose']
 const neutrals = ['slate', 'gray', 'zinc', 'neutral', 'stone']
 
@@ -98,7 +104,8 @@ const items = computed<DropdownMenuItem[][]>(() => ([[{
     label: 'Light',
     icon: 'i-lucide-sun',
     type: 'checkbox',
-    checked: colorMode.value === 'light',
+    // Use isClient guard to avoid SSR/client hydration mismatch
+    checked: isClient.value && colorMode.value === 'light',
     onSelect(e: Event) {
       e.preventDefault()
 
@@ -108,7 +115,8 @@ const items = computed<DropdownMenuItem[][]>(() => ([[{
     label: 'Dark',
     icon: 'i-lucide-moon',
     type: 'checkbox',
-    checked: colorMode.value === 'dark',
+    // Use isClient guard to avoid SSR/client hydration mismatch
+    checked: isClient.value && colorMode.value === 'dark',
     onUpdateChecked(checked: boolean) {
       if (checked) {
         colorMode.preference = 'dark'
