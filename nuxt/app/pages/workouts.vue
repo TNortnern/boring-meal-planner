@@ -296,7 +296,18 @@ const finishWorkout = async () => {
     }
 
     // Mark workout as completed in progress log with session data
-    await progressLogs.markWorkoutCompleted(true, workoutData)
+    const result = await progressLogs.markWorkoutCompleted(true, workoutData)
+
+    if (!result || !result.success) {
+      const errorMsg = result?.error || 'Unknown error saving workout'
+      console.error('Failed to save workout:', errorMsg)
+      toast.add({
+        title: 'Failed to Save Workout',
+        description: errorMsg,
+        color: 'error'
+      })
+      return
+    }
 
     // Refresh logs to update workout history display
     await progressLogs.fetchLogs()
@@ -306,11 +317,12 @@ const finishWorkout = async () => {
       description: `Great work! You completed ${completedSets} of ${totalSets} sets.`,
       color: 'success'
     })
-  } catch {
+  } catch (err) {
+    console.error('Workout save error:', err)
     toast.add({
-      title: 'Warning',
-      description: 'Workout completed but failed to sync with server',
-      color: 'warning'
+      title: 'Error',
+      description: 'Failed to save workout. Please try again.',
+      color: 'error'
     })
   } finally {
     isFinishingWorkout.value = false
