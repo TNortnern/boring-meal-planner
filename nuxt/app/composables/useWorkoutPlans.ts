@@ -52,6 +52,8 @@ const _useWorkoutPlans = () => {
   const allPlans = ref<WorkoutPlan[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  // Track if we're on client side to avoid SSR hydration mismatches with Date
+  const isClient = ref(false)
 
   // Fetch the active workout plan for current user
   const fetchActivePlan = async () => {
@@ -234,9 +236,10 @@ const _useWorkoutPlans = () => {
     return updatePlan(activePlan.value.id, { dailyStepsTarget: stepsTarget })
   }
 
-  // Get today's workout based on day of week
+  // Get today's workout based on day of week - only evaluate on client to avoid SSR hydration mismatches
   const getTodaysWorkout = computed(() => {
     if (!activePlan.value) return null
+    if (!isClient.value) return null // Return null during SSR to avoid Date mismatch
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const today = dayNames[new Date().getDay()]
@@ -251,9 +254,10 @@ const _useWorkoutPlans = () => {
     return activePlan.value.workouts[workoutIndex] || null
   })
 
-  // Computed: is today a rest day
+  // Computed: is today a rest day - only evaluate on client to avoid SSR hydration mismatches
   const isRestDay = computed(() => {
     if (!activePlan.value) return true
+    if (!isClient.value) return true // Default to rest day during SSR
 
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const today = dayNames[new Date().getDay()]
@@ -273,6 +277,7 @@ const _useWorkoutPlans = () => {
 
   // Initialize
   const init = async () => {
+    isClient.value = true // Mark as client-side to enable Date-dependent computed properties
     if (user.value) {
       await fetchActivePlan()
     }
