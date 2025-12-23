@@ -103,9 +103,13 @@ interface DisplayMeal {
   slot: string
   slotKey: string
   recipe: string
+  description?: string
+  prepTime?: number
   macros: { calories: number, protein: number, carbs: number, fat: number }
+  nutrition?: { fiber?: number, sugar?: number, sodium?: number, cholesterol?: number, saturatedFat?: number }
   ingredients: Array<{ name: string, amount: string, macros?: { protein: number, carbs: number, fat: number } }>
   instructions: string
+  tips?: string
   recipeId?: number
   eaten: boolean
 }
@@ -125,18 +129,24 @@ const getFormattedMealsForDay = (dayIndex: number): DisplayMeal[] => {
 
       // Use recipeData if available, otherwise fall back to relationship
       if (recipeData) {
+        // Try to find full recipe from boringRecipes for additional data
+        const fullRecipe = boringRecipes.find(r => r.name === recipeData.name)
         return {
           slot: slotKey.replace('meal_', 'Meal '),
           slotKey,
           recipe: recipeData.name,
+          description: fullRecipe?.description,
+          prepTime: fullRecipe?.prepTime,
           macros: {
             calories: recipeData.macros?.calories || 0,
             protein: recipeData.macros?.protein || 0,
             carbs: recipeData.macros?.carbs || 0,
             fat: recipeData.macros?.fat || 0
           },
+          nutrition: fullRecipe?.nutrition,
           ingredients: recipeData.ingredientsList || [],
           instructions: recipeData.instructions?.join('\n') || '',
+          tips: fullRecipe?.tips,
           recipeId: undefined,
           eaten: mealEaten?.eaten || false
         }
@@ -167,19 +177,25 @@ const getFormattedMealsForDay = (dayIndex: number): DisplayMeal[] => {
     const mealFat = meal.ingredients?.reduce((acc, ing) => acc + (ing.macros?.fat || 0), 0) || 0
     const todayLog = progressLogs.getTodayLog.value
     const mealEaten = todayLog?.mealsEaten?.find(m => m.slot === slotKey)
+    // Look up full recipe for additional data
+    const fullRecipe = boringRecipes.find(r => r.name === meal.recipe)
 
     return {
       slot: meal.slot,
       slotKey,
       recipe: meal.recipe,
+      description: fullRecipe?.description,
+      prepTime: fullRecipe?.prepTime,
       macros: {
         calories: meal.macros.calories,
         protein: meal.macros.protein,
         carbs: mealCarbs,
         fat: mealFat
       },
+      nutrition: fullRecipe?.nutrition,
       ingredients: meal.ingredients || [],
       instructions: meal.instructions,
+      tips: fullRecipe?.tips,
       eaten: mealEaten?.eaten || false
     }
   })
@@ -658,11 +674,118 @@ watch(isAuthenticated, async (authenticated) => {
                 v-if="expandedMealSlot === meal.slotKey"
                 class="px-4 pb-4 space-y-4 border-t border-default"
               >
+                <!-- Description & Quick Info -->
+                <div class="pt-4 flex flex-wrap items-center gap-3">
+                  <p v-if="meal.description" class="text-sm text-muted flex-1 min-w-[200px]">
+                    {{ meal.description }}
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <UBadge
+                      v-if="meal.prepTime"
+                      color="neutral"
+                      variant="subtle"
+                      size="sm"
+                    >
+                      <UIcon name="i-lucide-clock" class="w-3 h-3 mr-1" />
+                      {{ meal.prepTime }} min
+                    </UBadge>
+                  </div>
+                </div>
+
+                <!-- Full Nutrition Panel -->
+                <div class="p-4 rounded-xl bg-gradient-to-r from-primary/5 to-transparent border border-primary/20">
+                  <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <UIcon name="i-lucide-pie-chart" class="w-4 h-4 text-primary" />
+                    Nutrition Facts
+                  </h4>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <!-- Macros -->
+                    <div class="text-center p-2 rounded-lg bg-white/50 dark:bg-gray-900/50">
+                      <div class="text-lg font-bold">
+                        {{ meal.macros.calories }}
+                      </div>
+                      <div class="text-xs text-muted">
+                        Calories
+                      </div>
+                    </div>
+                    <div class="text-center p-2 rounded-lg bg-blue-500/10">
+                      <div class="text-lg font-bold text-blue-600 dark:text-blue-400">
+                        {{ meal.macros.protein }}g
+                      </div>
+                      <div class="text-xs text-muted">
+                        Protein
+                      </div>
+                    </div>
+                    <div class="text-center p-2 rounded-lg bg-amber-500/10">
+                      <div class="text-lg font-bold text-amber-600 dark:text-amber-400">
+                        {{ meal.macros.carbs }}g
+                      </div>
+                      <div class="text-xs text-muted">
+                        Carbs
+                      </div>
+                    </div>
+                    <div class="text-center p-2 rounded-lg bg-rose-500/10">
+                      <div class="text-lg font-bold text-rose-600 dark:text-rose-400">
+                        {{ meal.macros.fat }}g
+                      </div>
+                      <div class="text-xs text-muted">
+                        Fat
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Additional Nutrition (if available) -->
+                  <div v-if="meal.nutrition" class="mt-3 pt-3 border-t border-primary/10">
+                    <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
+                      <div v-if="meal.nutrition.fiber !== undefined" class="p-1.5">
+                        <div class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                          {{ meal.nutrition.fiber }}g
+                        </div>
+                        <div class="text-[10px] text-muted uppercase tracking-wider">
+                          Fiber
+                        </div>
+                      </div>
+                      <div v-if="meal.nutrition.sugar !== undefined" class="p-1.5">
+                        <div class="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                          {{ meal.nutrition.sugar }}g
+                        </div>
+                        <div class="text-[10px] text-muted uppercase tracking-wider">
+                          Sugar
+                        </div>
+                      </div>
+                      <div v-if="meal.nutrition.sodium !== undefined" class="p-1.5">
+                        <div class="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                          {{ meal.nutrition.sodium }}mg
+                        </div>
+                        <div class="text-[10px] text-muted uppercase tracking-wider">
+                          Sodium
+                        </div>
+                      </div>
+                      <div v-if="meal.nutrition.cholesterol !== undefined" class="p-1.5">
+                        <div class="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                          {{ meal.nutrition.cholesterol }}mg
+                        </div>
+                        <div class="text-[10px] text-muted uppercase tracking-wider">
+                          Cholesterol
+                        </div>
+                      </div>
+                      <div v-if="meal.nutrition.saturatedFat !== undefined" class="p-1.5">
+                        <div class="text-sm font-semibold text-red-600 dark:text-red-400">
+                          {{ meal.nutrition.saturatedFat }}g
+                        </div>
+                        <div class="text-[10px] text-muted uppercase tracking-wider">
+                          Sat Fat
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Ingredients -->
-                <div v-if="meal.ingredients.length > 0" class="pt-4">
+                <div v-if="meal.ingredients.length > 0">
                   <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
                     <UIcon name="i-lucide-list" class="w-4 h-4 text-primary" />
-                    Ingredients
+                    Ingredients ({{ meal.ingredients.length }})
                   </h4>
                   <div class="space-y-2">
                     <div
@@ -691,8 +814,22 @@ watch(isAuthenticated, async (authenticated) => {
                     <UIcon name="i-lucide-chef-hat" class="w-4 h-4 text-primary" />
                     Preparation
                   </h4>
-                  <p class="text-sm text-muted leading-relaxed">
-                    {{ meal.instructions }}
+                  <div class="text-sm text-muted leading-relaxed space-y-2">
+                    <p v-for="(step, stepIdx) in meal.instructions.split('\n').filter(s => s.trim())" :key="stepIdx" class="flex gap-2">
+                      <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">{{ stepIdx + 1 }}</span>
+                      <span>{{ step }}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Tips -->
+                <div v-if="meal.tips" class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <h4 class="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-1">
+                    <UIcon name="i-lucide-lightbulb" class="w-3 h-3" />
+                    Tip
+                  </h4>
+                  <p class="text-sm text-muted">
+                    {{ meal.tips }}
                   </p>
                 </div>
 

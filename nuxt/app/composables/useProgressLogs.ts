@@ -9,6 +9,26 @@ export interface MealEatenEntry {
   recipe?: number | string
 }
 
+export interface WorkoutSetData {
+  setNumber: number
+  reps: number
+  weight: number
+  completed: boolean
+}
+
+export interface WorkoutExerciseData {
+  exerciseName: string
+  sets: WorkoutSetData[]
+}
+
+export interface WorkoutSessionData {
+  dayName: string
+  exercises: WorkoutExerciseData[]
+  startedAt?: string
+  finishedAt?: string
+  notes?: string
+}
+
 export interface ProgressLog {
   id: number
   user: string | number
@@ -30,6 +50,7 @@ export interface ProgressLog {
     fat?: number
   }
   workoutCompleted?: boolean
+  workoutData?: WorkoutSessionData
   cardioCompleted?: boolean
   cardioMinutes?: number
   notes?: string
@@ -57,6 +78,7 @@ export interface CreateProgressLogInput {
   steps?: number
   mealsEaten?: ProgressLog['mealsEaten']
   workoutCompleted?: boolean
+  workoutData?: WorkoutSessionData
   cardioCompleted?: boolean
   cardioMinutes?: number
   notes?: string
@@ -187,20 +209,29 @@ const _useProgressLogs = () => {
     return updateLog(todayLog.id, { mealsEaten })
   }
 
-  // Mark workout as completed
-  const markWorkoutCompleted = async (completed: boolean) => {
+  // Mark workout as completed with optional session data
+  const markWorkoutCompleted = async (completed: boolean, workoutData?: WorkoutSessionData) => {
     if (!user.value) return { success: false, error: 'Not authenticated' }
 
     const today = new Date()
     const todayLog = getTodayLog.value
 
     if (!todayLog) {
-      const createResult = await createLog({ date: today, workoutCompleted: completed })
+      const createResult = await createLog({
+        date: today,
+        workoutCompleted: completed,
+        workoutData
+      })
       return createResult
     }
 
-    return updateLog(todayLog.id, { workoutCompleted: completed })
+    return updateLog(todayLog.id, { workoutCompleted: completed, workoutData })
   }
+
+  // Get today's workout data if exists
+  const getTodayWorkoutData = computed(() => {
+    return getTodayLog.value?.workoutData || null
+  })
 
   // Mark cardio as completed
   const markCardioCompleted = async (completed: boolean, minutes?: number) => {
@@ -503,6 +534,7 @@ const _useProgressLogs = () => {
 
     // Computed
     getTodayLog,
+    getTodayWorkoutData,
     weightHistory,
     currentWeight,
     workoutsThisWeek,

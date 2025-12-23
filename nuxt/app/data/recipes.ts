@@ -22,6 +22,13 @@ export interface Recipe {
     carbs: number
     fat: number
   }
+  nutrition?: {
+    fiber?: number // grams
+    sugar?: number // grams
+    sodium?: number // mg
+    cholesterol?: number // mg
+    saturatedFat?: number // grams
+  }
   ingredients: number
   ingredientsList?: RecipeIngredient[]
   instructions?: string[]
@@ -50,6 +57,7 @@ export const boringRecipes: Recipe[] = [
     tags: ['meal_prep', 'high_protein'],
     source: 'homemade',
     macros: { calories: 550, protein: 45, carbs: 55, fat: 12 },
+    nutrition: { fiber: 4, sugar: 2, sodium: 420, cholesterol: 85, saturatedFat: 2 },
     ingredients: 4,
     ingredientsList: [
       { name: 'Chicken Breast', amount: '6 oz', macros: { protein: 42, carbs: 0, fat: 3 } },

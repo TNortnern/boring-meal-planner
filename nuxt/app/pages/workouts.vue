@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { WorkoutSessionData, WorkoutExerciseData } from '~/composables/useProgressLogs'
+
 const toast = useToast()
 
 // Local workout state (session management)
@@ -266,8 +268,34 @@ const finishWorkout = async () => {
     // Mark session as completed
     activeSession.value.completed = true
 
-    // Mark workout as completed in progress log
-    await progressLogs.markWorkoutCompleted(true)
+    // Build workout session data for persistence
+    const exerciseMap = new Map<string, WorkoutExerciseData>()
+
+    activeSession.value.exercises.forEach((set) => {
+      if (!exerciseMap.has(set.exerciseName)) {
+        exerciseMap.set(set.exerciseName, {
+          exerciseName: set.exerciseName,
+          sets: []
+        })
+      }
+      const exercise = exerciseMap.get(set.exerciseName)!
+      exercise.sets.push({
+        setNumber: set.setNumber,
+        reps: set.actualReps || 0,
+        weight: set.actualWeight || 0,
+        completed: set.completed
+      })
+    })
+
+    const workoutData: WorkoutSessionData = {
+      dayName: activeSession.value.dayName,
+      exercises: Array.from(exerciseMap.values()),
+      startedAt: activeSession.value.date.toISOString(),
+      finishedAt: new Date().toISOString()
+    }
+
+    // Mark workout as completed in progress log with session data
+    await progressLogs.markWorkoutCompleted(true, workoutData)
 
     toast.add({
       title: 'Workout Complete',
@@ -316,6 +344,64 @@ const toggleExerciseExpanded = (exerciseName: string) => {
   } else {
     expandedExercise.value = exerciseName
   }
+}
+
+// View workout details modal
+const viewWorkoutDetailsOpen = ref(false)
+
+// Get saved workout data for today
+const todayWorkoutData = computed(() => {
+  return progressLogs.getTodayWorkoutData.value
+})
+
+// Resume editing a completed workout
+const resumeCompletedWorkout = () => {
+  const workoutData = todayWorkoutData.value
+  const day = currentDay.value
+  if (!workoutData || !day) {
+    // Just start fresh if no data
+    startActiveWorkout()
+    return
+  }
+
+  // Rebuild active session from saved data
+  const exercises: SessionExercise[] = []
+  day.exercises.forEach((exercise) => {
+    const savedExercise = workoutData.exercises.find(e => e.exerciseName === exercise.name)
+    for (let i = 0; i < exercise.sets; i++) {
+      const savedSet = savedExercise?.sets.find(s => s.setNumber === i + 1)
+      exercises.push({
+        exerciseName: exercise.name,
+        setNumber: i + 1,
+        completed: savedSet?.completed || false,
+        actualReps: savedSet?.reps,
+        actualWeight: savedSet?.weight
+      })
+    }
+  })
+
+  activeSession.value = {
+    id: `session-${Date.now()}`,
+    date: workoutData.startedAt ? new Date(workoutData.startedAt) : new Date(),
+    dayName: workoutData.dayName,
+    exercises,
+    completed: false
+  }
+
+  // Restore working set data
+  workingSetData.value = {}
+  workoutData.exercises.forEach((exercise) => {
+    const exerciseData: { [setNum: number]: { reps: number, weight: number } } = {}
+    exercise.sets.forEach((set) => {
+      exerciseData[set.setNumber] = {
+        reps: set.reps,
+        weight: set.weight
+      }
+    })
+    workingSetData.value[exercise.exerciseName] = exerciseData
+  })
+
+  activeWorkoutOpen.value = true
 }
 
 // Add exercise modal
@@ -638,7 +724,7 @@ watch(isAuthenticated, async (authenticated) => {
             </div>
 
             <!-- Action -->
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 flex items-center gap-2">
               <UButton
                 v-if="currentDay && !isTodayWorkoutCompleted"
                 size="lg"
@@ -648,16 +734,26 @@ watch(isAuthenticated, async (authenticated) => {
                 <UIcon name="i-lucide-play" class="w-4 h-4 mr-1.5" />
                 Start
               </UButton>
-              <UButton
-                v-else-if="isTodayWorkoutCompleted"
-                variant="soft"
-                color="success"
-                size="lg"
-                disabled
-              >
-                <UIcon name="i-lucide-check" class="w-4 h-4 mr-1.5" />
-                Complete
-              </UButton>
+              <template v-else-if="isTodayWorkoutCompleted">
+                <UButton
+                  variant="soft"
+                  color="neutral"
+                  size="lg"
+                  @click="viewWorkoutDetailsOpen = true"
+                >
+                  <UIcon name="i-lucide-eye" class="w-4 h-4 mr-1.5" />
+                  View
+                </UButton>
+                <UButton
+                  variant="soft"
+                  color="success"
+                  size="lg"
+                  @click="resumeCompletedWorkout"
+                >
+                  <UIcon name="i-lucide-pencil" class="w-4 h-4 mr-1.5" />
+                  Edit
+                </UButton>
+              </template>
             </div>
           </div>
         </div>
@@ -733,40 +829,27 @@ watch(isAuthenticated, async (authenticated) => {
                 </div>
               </div>
 
-              <!-- Expanded details -->
-              <Transition
-                enter-active-class="transition-all duration-200 ease-out"
-                enter-from-class="opacity-0 max-h-0"
-                enter-to-class="opacity-100 max-h-48"
-                leave-active-class="transition-all duration-150 ease-in"
-                leave-from-class="opacity-100 max-h-48"
-                leave-to-class="opacity-0 max-h-0"
+              <!-- Expanded details (inline, compact) -->
+              <div
+                v-if="expandedExercise === exercise.name"
+                class="px-4 pb-3 pt-2 border-t border-default bg-muted/5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
               >
-                <div v-if="expandedExercise === exercise.name" class="overflow-hidden">
-                  <div class="px-4 pb-4 pt-2 border-t border-default bg-muted/5">
-                    <div v-if="exercise.instructions" class="mb-3">
-                      <div class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
-                        Instructions
-                      </div>
-                      <p class="text-sm">
-                        {{ exercise.instructions }}
-                      </p>
-                    </div>
-                    <div v-if="exercise.videoUrl">
-                      <div class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
-                        Video
-                      </div>
-                      <a :href="exercise.videoUrl" target="_blank" class="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                        <UIcon name="i-lucide-external-link" class="w-3.5 h-3.5" />
-                        Watch tutorial
-                      </a>
-                    </div>
-                    <div v-if="!exercise.instructions && !exercise.videoUrl" class="text-sm text-muted">
-                      No details yet. Tap edit to add notes.
-                    </div>
-                  </div>
-                </div>
-              </Transition>
+                <span v-if="exercise.instructions" class="text-muted">
+                  {{ exercise.instructions }}
+                </span>
+                <a
+                  v-if="exercise.videoUrl"
+                  :href="exercise.videoUrl"
+                  target="_blank"
+                  class="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <UIcon name="i-lucide-play-circle" class="w-4 h-4" />
+                  Video
+                </a>
+                <span v-if="!exercise.instructions && !exercise.videoUrl" class="text-muted italic">
+                  No notes. Click edit to add.
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1143,6 +1226,104 @@ watch(isAuthenticated, async (authenticated) => {
               </UButton>
               <UButton :loading="isSavingNewExercise" @click="saveNewExercise">
                 Add Exercise
+              </UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
+
+    <!-- View Workout Details Modal -->
+    <UModal v-model:open="viewWorkoutDetailsOpen" :ui="{ content: 'sm:max-w-2xl' }">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold">
+                  Today's Workout Summary
+                </h3>
+                <p v-if="todayWorkoutData" class="text-sm text-muted">
+                  {{ todayWorkoutData.dayName }} · Completed {{ todayWorkoutData.finishedAt ? new Date(todayWorkoutData.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'today' }}
+                </p>
+              </div>
+              <UButton
+                icon="i-lucide-x"
+                variant="ghost"
+                color="neutral"
+                size="sm"
+                @click="viewWorkoutDetailsOpen = false"
+              />
+            </div>
+          </template>
+
+          <div v-if="todayWorkoutData" class="space-y-4 max-h-[60vh] overflow-y-auto">
+            <div
+              v-for="exercise in todayWorkoutData.exercises"
+              :key="exercise.exerciseName"
+              class="p-4 rounded-xl bg-elevated border border-default"
+            >
+              <div class="flex items-center justify-between mb-3">
+                <div class="font-medium">
+                  {{ exercise.exerciseName }}
+                </div>
+                <UBadge
+                  :color="exercise.sets.filter(s => s.completed).length === exercise.sets.length ? 'success' : 'warning'"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ exercise.sets.filter(s => s.completed).length }}/{{ exercise.sets.length }} sets
+                </UBadge>
+              </div>
+
+              <div class="space-y-1.5">
+                <div
+                  v-for="set in exercise.sets"
+                  :key="set.setNumber"
+                  class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm"
+                  :class="set.completed ? 'bg-success/10' : 'bg-muted/20'"
+                >
+                  <span class="font-medium text-muted w-14">Set {{ set.setNumber }}</span>
+                  <span v-if="set.completed" class="flex items-center gap-2">
+                    <span class="font-semibold">{{ set.reps }}</span>
+                    <span class="text-muted">reps</span>
+                    <span class="text-muted">@</span>
+                    <span class="font-semibold">{{ set.weight }}</span>
+                    <span class="text-muted">lbs</span>
+                  </span>
+                  <span v-else class="text-muted italic">Not completed</span>
+                  <UIcon
+                    v-if="set.completed"
+                    name="i-lucide-check-circle"
+                    class="w-4 h-4 text-success ml-auto"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div v-if="todayWorkoutData.notes" class="p-4 rounded-xl bg-muted/10 border border-muted">
+              <div class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+                Notes
+              </div>
+              <p class="text-sm">
+                {{ todayWorkoutData.notes }}
+              </p>
+            </div>
+          </div>
+
+          <div v-else class="py-8 text-center text-muted">
+            <UIcon name="i-lucide-file-x" class="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>No workout data saved for today.</p>
+          </div>
+
+          <template #footer>
+            <div class="flex justify-end gap-3">
+              <UButton variant="ghost" color="neutral" @click="viewWorkoutDetailsOpen = false">
+                Close
+              </UButton>
+              <UButton @click="viewWorkoutDetailsOpen = false; resumeCompletedWorkout()">
+                <UIcon name="i-lucide-pencil" class="w-4 h-4 mr-1.5" />
+                Edit Workout
               </UButton>
             </div>
           </template>
