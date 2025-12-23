@@ -11,7 +11,7 @@ A meal planning web app that prioritizes simplicity and effectiveness over varie
 - Password: TestBoring123!
 
 **Local Tools:**
-- Bun installed (use for running scripts)
+- Bun installed at `~/.bun/bin/bun` (add to PATH: `export PATH="$HOME/.bun/bin:$PATH"`)
 - Dev Browser plugin for browser automation testing
 
 **Tech Stack:**
