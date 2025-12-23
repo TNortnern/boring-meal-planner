@@ -59,5 +59,6 @@ export default buildConfig({
 
   plugins: [],
 
-  telemetry: false
+  telemetry: false,
+  // Schema sync: push=true ensures new fields are synced on startup
 })
