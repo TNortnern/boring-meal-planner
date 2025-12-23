@@ -144,34 +144,36 @@ export const ProgressLogs: CollectionConfig = {
         description: 'Optional progress photo'
       }
     },
-    {
-      name: 'progressPhotos',
-      type: 'array',
-      admin: {
-        description: 'Progress photos stored externally (Bunny CDN)'
-      },
-      fields: [
-        {
-          name: 'url',
-          type: 'text',
-          required: true
-        },
-        {
-          name: 'type',
-          type: 'select',
-          defaultValue: 'front',
-          options: [
-            { label: 'Front', value: 'front' },
-            { label: 'Side', value: 'side' },
-            { label: 'Back', value: 'back' }
-          ]
-        },
-        {
-          name: 'uploadedAt',
-          type: 'date'
-        }
-      ]
-    },
+    // TODO: Re-add progressPhotos with proper migration after fixing production DB
+    // The progress_logs_progress_photos join table doesn't exist in production
+    // {
+    //   name: 'progressPhotos',
+    //   type: 'array',
+    //   admin: {
+    //     description: 'Progress photos stored externally (Bunny CDN)'
+    //   },
+    //   fields: [
+    //     {
+    //       name: 'url',
+    //       type: 'text',
+    //       required: true
+    //     },
+    //     {
+    //       name: 'type',
+    //       type: 'select',
+    //       defaultValue: 'front',
+    //       options: [
+    //         { label: 'Front', value: 'front' },
+    //         { label: 'Side', value: 'side' },
+    //         { label: 'Back', value: 'back' }
+    //       ]
+    //     },
+    //     {
+    //       name: 'uploadedAt',
+    //       type: 'date'
+    //     }
+    //   ]
+    // },
     {
       name: 'shoppingListPurchased',
       type: 'json',

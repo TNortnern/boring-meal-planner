@@ -57,12 +57,13 @@ export interface ProgressLog {
   isCheckInDay?: boolean
   photo?: number | string
   shoppingListPurchased?: string[]
-  progressPhotos?: Array<{
-    id?: string
-    url: string
-    type: 'front' | 'side' | 'back'
-    uploadedAt?: string
-  }>
+  // TODO: Re-enable when progressPhotos is added back to backend
+  // progressPhotos?: Array<{
+  //   id?: string
+  //   url: string
+  //   type: 'front' | 'side' | 'back'
+  //   uploadedAt?: string
+  // }>
   measurements?: {
     chest?: number
     arms?: number
@@ -504,55 +505,47 @@ const _useProgressLogs = () => {
       .sort((a, b) => b.date.getTime() - a.date.getTime())
   })
 
+  // TODO: Re-enable when progressPhotos is added back to backend
   // Add a progress photo to the current day's log
-  const addProgressPhoto = async (url: string, type: 'front' | 'side' | 'back' = 'front') => {
-    if (!auth.user.value) return { success: false, error: 'Not authenticated' }
-
-    const today = new Date()
-    let todayLog = getTodayLog.value
-
-    // Create today's log if it doesn't exist
-    if (!todayLog) {
-      const createResult = await createLog({ date: today })
-      if (!createResult.success) return createResult
-      todayLog = createResult.data
-    }
-
-    if (!todayLog) return { success: false, error: 'Failed to get today\'s log' }
-
-    // Add the photo to the progressPhotos array
-    const currentPhotos = todayLog.progressPhotos || []
-    const newPhoto = {
-      id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      url,
-      type,
-      uploadedAt: formatDateForPayload(new Date())
-    }
-
-    return updateLog(todayLog.id, {
-      progressPhotos: [...currentPhotos, newPhoto]
-    })
-  }
+  // const addProgressPhoto = async (url: string, type: 'front' | 'side' | 'back' = 'front') => {
+  //   if (!auth.user.value) return { success: false, error: 'Not authenticated' }
+  //   const today = new Date()
+  //   let todayLog = getTodayLog.value
+  //   if (!todayLog) {
+  //     const createResult = await createLog({ date: today })
+  //     if (!createResult.success) return createResult
+  //     todayLog = createResult.data
+  //   }
+  //   if (!todayLog) return { success: false, error: 'Failed to get today\'s log' }
+  //   const currentPhotos = todayLog.progressPhotos || []
+  //   const newPhoto = {
+  //     id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  //     url,
+  //     type,
+  //     uploadedAt: formatDateForPayload(new Date())
+  //   }
+  //   return updateLog(todayLog.id, {
+  //     progressPhotos: [...currentPhotos, newPhoto]
+  //   })
+  // }
 
   // Get all progress photos across all logs
-  const allProgressPhotos = computed(() => {
-    const photos: Array<{ id: string, date: Date, type: string, url: string }> = []
-
-    for (const log of logs.value) {
-      if (log.progressPhotos) {
-        for (const photo of log.progressPhotos) {
-          photos.push({
-            id: photo.id || `${log.id}-${photo.url}`,
-            date: photo.uploadedAt ? new Date(photo.uploadedAt) : new Date(log.date),
-            type: photo.type,
-            url: photo.url
-          })
-        }
-      }
-    }
-
-    return photos.sort((a, b) => b.date.getTime() - a.date.getTime())
-  })
+  // const allProgressPhotos = computed(() => {
+  //   const photos: Array<{ id: string, date: Date, type: string, url: string }> = []
+  //   for (const log of logs.value) {
+  //     if (log.progressPhotos) {
+  //       for (const photo of log.progressPhotos) {
+  //         photos.push({
+  //           id: photo.id || `${log.id}-${photo.url}`,
+  //           date: photo.uploadedAt ? new Date(photo.uploadedAt) : new Date(log.date),
+  //           type: photo.type,
+  //           url: photo.url
+  //         })
+  //       }
+  //     }
+  //   }
+  //   return photos.sort((a, b) => b.date.getTime() - a.date.getTime())
+  // })
 
   // Initialize - fetch logs on mount
   const init = async () => {
@@ -580,7 +573,7 @@ const _useProgressLogs = () => {
     checkInHistory,
     latestMeasurement,
     firstMeasurement,
-    allProgressPhotos,
+    // allProgressPhotos, // TODO: Re-enable when progressPhotos is added back
 
     // Methods
     fetchLogs,
@@ -594,7 +587,7 @@ const _useProgressLogs = () => {
     toggleShoppingItem,
     addCheckIn,
     addWeightForDate,
-    addProgressPhoto,
+    // addProgressPhoto, // TODO: Re-enable when progressPhotos is added back
     init
   }
 }

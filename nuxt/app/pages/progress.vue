@@ -38,13 +38,11 @@ const measurementHistory = computed(() => {
     }))
 })
 
-// Progress photos from API (with localStorage fallback for migration)
-// Use ref to avoid SSR/CSR hydration mismatch with localStorage
+// Progress photos - using localStorage only for now
+// TODO: Re-enable API photos when progressPhotos field is added back to backend
 const localProgressPhotos = ref<Array<{ id: string, date: Date, type: string, url: string }>>([])
 const progressPhotos = computed(() => {
-  // Combine API photos with localStorage fallback
-  const apiPhotos = progressLogs.allProgressPhotos.value
-  if (apiPhotos.length > 0) return apiPhotos
+  // Use localStorage-based photos for now (API photos disabled due to missing DB table)
   return localProgressPhotos.value
 })
 
@@ -334,32 +332,21 @@ const handlePhotoUpload = async (event: Event) => {
     const result = await bunnyUploadProgressPhoto(file)
 
     if (result.success && result.url) {
-      // Save photo to database via progress logs API
-      const saveResult = await progressLogs.addProgressPhoto(result.url, 'front')
-
-      if (saveResult.success) {
-        toast.add({
-          title: 'Photo uploaded',
-          description: 'Your progress photo has been saved.',
-          icon: 'i-lucide-check',
-          color: 'success'
-        })
-      } else {
-        // Fallback to localStorage if API fails
-        const id = `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        localProgressPhotos.value.push({
-          id,
-          date: new Date(),
-          type: 'front',
-          url: result.url
-        })
-        toast.add({
-          title: 'Photo uploaded',
-          description: 'Photo saved locally (sync pending).',
-          icon: 'i-lucide-check',
-          color: 'warning'
-        })
-      }
+      // TODO: Re-enable API save when progressPhotos field is added back to backend
+      // For now, save to localStorage only
+      const id = `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      localProgressPhotos.value.push({
+        id,
+        date: new Date(),
+        type: 'front',
+        url: result.url
+      })
+      toast.add({
+        title: 'Photo uploaded',
+        description: 'Your progress photo has been saved.',
+        icon: 'i-lucide-check',
+        color: 'success'
+      })
     } else {
       toast.add({
         title: 'Upload failed',
