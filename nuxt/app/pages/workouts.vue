@@ -9,7 +9,8 @@ const {
   currentPlan: localPlan,
   updateExerciseTarget: updateLocalExercise,
   addExercise: addLocalExercise,
-  createWorkoutPlan: createLocalPlan
+  createWorkoutPlan: createLocalPlan,
+  init: initWorkouts
 } = useWorkouts()
 
 // API-backed composables
@@ -548,7 +549,10 @@ const handleCreatePlan = async () => {
 
 // Initialize API data on mount
 onMounted(async () => {
-  // First, initialize auth to fetch user from token
+  // Initialize local workout data from localStorage
+  initWorkouts()
+
+  // Initialize auth to fetch user from token
   await initAuth()
 
   if (isAuthenticated.value) {

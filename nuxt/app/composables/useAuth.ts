@@ -1,4 +1,4 @@
-import { createSharedComposable, useLocalStorage } from '@vueuse/core'
+import { createSharedComposable } from '@vueuse/core'
 
 // User interface matching Payload Users collection schema
 export interface User {
@@ -49,10 +49,33 @@ const _useAuth = () => {
   const apiBase = '/api'
 
   const user = ref<User | null>(null)
-  const token = useLocalStorage<string | null>('boring-auth-token', null)
+  // Use ref instead of useLocalStorage to avoid SSR hydration mismatch
+  const token = ref<string | null>(null)
   const isAuthenticated = computed(() => !!user.value && !!token.value)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const isInitialized = ref(false)
+
+  // Load token from localStorage (client-side only)
+  const loadToken = () => {
+    if (import.meta.client && !isInitialized.value) {
+      const stored = localStorage.getItem('boring-auth-token')
+      token.value = stored
+      isInitialized.value = true
+    }
+  }
+
+  // Save token to localStorage
+  const saveToken = (newToken: string | null) => {
+    token.value = newToken
+    if (import.meta.client) {
+      if (newToken) {
+        localStorage.setItem('boring-auth-token', newToken)
+      } else {
+        localStorage.removeItem('boring-auth-token')
+      }
+    }
+  }
 
   // Fetch current user from Payload
   const fetchUser = async () => {
@@ -68,7 +91,7 @@ const _useAuth = () => {
       return response.user
     } catch {
       // Token expired or invalid
-      token.value = null
+      saveToken(null)
       user.value = null
       return null
     }
@@ -85,7 +108,7 @@ const _useAuth = () => {
         body: { email, password }
       })
 
-      token.value = response.token
+      saveToken(response.token)
       user.value = response.user
       return { success: true, user: response.user }
     } catch (err: unknown) {
@@ -139,7 +162,7 @@ const _useAuth = () => {
     } catch {
       // Ignore errors on logout
     } finally {
-      token.value = null
+      saveToken(null)
       user.value = null
     }
   }
@@ -173,6 +196,8 @@ const _useAuth = () => {
 
   // Initialize auth state on mount
   const init = async () => {
+    // Load token from localStorage first (client-side only)
+    loadToken()
     if (token.value) {
       await fetchUser()
     }

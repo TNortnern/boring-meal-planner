@@ -1,4 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
+import { ref, computed, watch } from 'vue'
 
 export interface WeightEntry {
   date: Date
@@ -22,59 +23,92 @@ export interface ProgressPhoto {
 }
 
 const _useProgress = () => {
-  const startWeight = useLocalStorage('progress-start-weight', 195.0)
-  const goalWeight = useLocalStorage('progress-goal-weight', 175.0)
-  const currentWeight = useLocalStorage('progress-current-weight', 195.0)
+  // Use refs instead of useLocalStorage to avoid SSR hydration mismatches
+  const isInitialized = ref(false)
 
-  const weightHistory = useLocalStorage<WeightEntry[]>('progress-weight-history', [
-    { date: new Date(), weight: 195.0 }
-  ], {
-    serializer: {
-      read: (v: string) => {
-        const parsed = JSON.parse(v)
-        return parsed.map((entry: { date: string, weight: number }) => ({
-          ...entry,
-          date: new Date(entry.date)
-        }))
-      },
-      write: (v: WeightEntry[]) => JSON.stringify(v)
-    }
-  })
+  // Default values
+  const startWeight = ref(195.0)
+  const goalWeight = ref(175.0)
+  const currentWeight = ref(195.0)
+  const weightHistory = ref<WeightEntry[]>([])
+  const measurementHistory = ref<MeasurementEntry[]>([])
+  const progressPhotos = ref<ProgressPhoto[]>([])
 
-  const measurementHistory = useLocalStorage<MeasurementEntry[]>('progress-measurement-history', [
-    {
-      date: new Date(),
-      waist: 36.0,
-      chest: 41.0,
-      arms: 15.0,
-      thighs: 24.0,
-      bodyFat: 20
-    }
-  ], {
-    serializer: {
-      read: (v: string) => {
-        const parsed = JSON.parse(v)
-        return parsed.map((entry: { date: string, waist: number, chest: number, arms: number, thighs?: number, bodyFat?: number, notes?: string }) => ({
-          ...entry,
-          date: new Date(entry.date)
-        }))
-      },
-      write: (v: MeasurementEntry[]) => JSON.stringify(v)
-    }
-  })
+  // Load state from localStorage (client-side only)
+  const loadFromStorage = () => {
+    if (import.meta.client && !isInitialized.value) {
+      // Load simple values
+      const storedStartWeight = localStorage.getItem('progress-start-weight')
+      if (storedStartWeight) startWeight.value = parseFloat(storedStartWeight)
 
-  const progressPhotos = useLocalStorage<ProgressPhoto[]>('progress-photos', [], {
-    serializer: {
-      read: (v: string) => {
-        const parsed = JSON.parse(v)
-        return parsed.map((photo: { date: string, url: string, type?: string, weight?: number, notes?: string }) => ({
-          ...photo,
-          date: new Date(photo.date)
-        }))
-      },
-      write: (v: ProgressPhoto[]) => JSON.stringify(v)
+      const storedGoalWeight = localStorage.getItem('progress-goal-weight')
+      if (storedGoalWeight) goalWeight.value = parseFloat(storedGoalWeight)
+
+      const storedCurrentWeight = localStorage.getItem('progress-current-weight')
+      if (storedCurrentWeight) currentWeight.value = parseFloat(storedCurrentWeight)
+
+      // Load weight history with date parsing
+      const storedWeightHistory = localStorage.getItem('progress-weight-history')
+      if (storedWeightHistory) {
+        try {
+          const parsed = JSON.parse(storedWeightHistory)
+          weightHistory.value = parsed.map((entry: { date: string, weight: number }) => ({
+            ...entry,
+            date: new Date(entry.date)
+          }))
+        } catch {
+          weightHistory.value = []
+        }
+      }
+
+      // Load measurement history with date parsing
+      const storedMeasurements = localStorage.getItem('progress-measurement-history')
+      if (storedMeasurements) {
+        try {
+          const parsed = JSON.parse(storedMeasurements)
+          measurementHistory.value = parsed.map((entry: { date: string, waist: number, chest: number, arms: number, thighs?: number, bodyFat?: number }) => ({
+            ...entry,
+            date: new Date(entry.date)
+          }))
+        } catch {
+          measurementHistory.value = []
+        }
+      }
+
+      // Load progress photos with date parsing
+      const storedPhotos = localStorage.getItem('progress-photos')
+      if (storedPhotos) {
+        try {
+          const parsed = JSON.parse(storedPhotos)
+          progressPhotos.value = parsed.map((photo: { id: string, date: string, type: string, url: string }) => ({
+            ...photo,
+            date: new Date(photo.date)
+          }))
+        } catch {
+          progressPhotos.value = []
+        }
+      }
+
+      isInitialized.value = true
     }
-  })
+  }
+
+  // Save state to localStorage (client-side only)
+  const saveToStorage = () => {
+    if (import.meta.client) {
+      localStorage.setItem('progress-start-weight', String(startWeight.value))
+      localStorage.setItem('progress-goal-weight', String(goalWeight.value))
+      localStorage.setItem('progress-current-weight', String(currentWeight.value))
+      localStorage.setItem('progress-weight-history', JSON.stringify(weightHistory.value))
+      localStorage.setItem('progress-measurement-history', JSON.stringify(measurementHistory.value))
+      localStorage.setItem('progress-photos', JSON.stringify(progressPhotos.value))
+    }
+  }
+
+  // Watch for changes and persist (only on client)
+  if (import.meta.client) {
+    watch([startWeight, goalWeight, currentWeight, weightHistory, measurementHistory, progressPhotos], saveToStorage, { deep: true })
+  }
 
   // Computed values
   const weeklyAverage = computed(() => {
@@ -235,6 +269,7 @@ const _useProgress = () => {
     firstMeasurement,
 
     // Functions
+    init: loadFromStorage,
     addWeightEntry,
     addMeasurement,
     addProgressPhoto,

@@ -1,4 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
+import { ref, computed, watch } from 'vue'
 
 export interface Exercise {
   name: string
@@ -42,9 +43,12 @@ export interface WorkoutSession {
 }
 
 const _useWorkouts = () => {
-  const boringMode = useLocalStorage('workouts-boring-mode', true)
+  // Use refs instead of useLocalStorage to avoid SSR hydration mismatches
+  const boringMode = ref(true)
+  const isInitialized = ref(false)
 
-  const currentPlan = useLocalStorage<WorkoutPlan>('workouts-current-plan', {
+  // Default workout plan
+  const defaultPlan: WorkoutPlan = {
     name: 'PPL Strength Focus',
     type: 'ppl',
     daysPerWeek: 6,
@@ -117,20 +121,74 @@ const _useWorkouts = () => {
         ]
       }
     ]
-  })
+  }
 
-  const workoutHistory = useLocalStorage<WorkoutSession[]>('workouts-history', [], {
-    serializer: {
-      read: (v: string) => {
-        const parsed = JSON.parse(v)
-        return parsed.map((session: { date: string, dayName: string, exercises: ExerciseProgress[], duration: number, volumeTotal: number }) => ({
-          ...session,
-          date: new Date(session.date)
-        }))
-      },
-      write: (v: WorkoutSession[]) => JSON.stringify(v)
+  // Use refs with manual localStorage access for SSR safety
+  const currentPlan = ref<WorkoutPlan>({ ...defaultPlan })
+  const workoutHistory = ref<WorkoutSession[]>([])
+
+  // Load state from localStorage (client-side only)
+  const loadFromStorage = () => {
+    if (import.meta.client && !isInitialized.value) {
+      // Load boring mode
+      const storedBoringMode = localStorage.getItem('workouts-boring-mode')
+      if (storedBoringMode !== null) {
+        boringMode.value = storedBoringMode === 'true'
+      }
+
+      // Load current plan
+      const storedPlan = localStorage.getItem('workouts-current-plan')
+      if (storedPlan) {
+        try {
+          currentPlan.value = JSON.parse(storedPlan)
+        } catch {
+          currentPlan.value = { ...defaultPlan }
+        }
+      }
+
+      // Load workout history with date parsing
+      const storedHistory = localStorage.getItem('workouts-history')
+      if (storedHistory) {
+        try {
+          const parsed = JSON.parse(storedHistory)
+          workoutHistory.value = parsed.map((session: { date: string, dayName: string, exercises: ExerciseProgress[], duration: number, volumeTotal: number }) => ({
+            ...session,
+            date: new Date(session.date)
+          }))
+        } catch {
+          workoutHistory.value = []
+        }
+      }
+
+      isInitialized.value = true
     }
-  })
+  }
+
+  // Save state to localStorage (client-side only)
+  const saveBoringMode = () => {
+    if (import.meta.client) {
+      localStorage.setItem('workouts-boring-mode', String(boringMode.value))
+    }
+  }
+
+  const savePlan = () => {
+    if (import.meta.client) {
+      localStorage.setItem('workouts-current-plan', JSON.stringify(currentPlan.value))
+    }
+  }
+
+  const saveHistory = () => {
+    if (import.meta.client) {
+      localStorage.setItem('workouts-history', JSON.stringify(workoutHistory.value))
+    }
+  }
+
+  // Watch for changes and persist (only after initialization)
+  if (import.meta.client) {
+    watch(boringMode, saveBoringMode, { deep: true })
+    watch(currentPlan, savePlan, { deep: true })
+    watch(workoutHistory, saveHistory, { deep: true })
+  }
 
   const currentSession = ref<WorkoutSession | null>(null)
 
@@ -479,6 +537,7 @@ const _useWorkouts = () => {
     workoutStats,
 
     // Functions
+    init: loadFromStorage,
     startWorkout,
     completeSet,
     endWorkout,
