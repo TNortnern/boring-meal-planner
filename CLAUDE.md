@@ -6,6 +6,10 @@ A meal planning web app that prioritizes simplicity and effectiveness over varie
 
 **Production URL:** https://app-production-3934.up.railway.app/
 
+**Test Account (for browser automation testing):**
+- Email: test@boringmealplanner.com
+- Password: TestBoring123!
+
 **Local Tools:**
 - Bun installed (use for running scripts)
 - Dev Browser plugin for browser automation testing

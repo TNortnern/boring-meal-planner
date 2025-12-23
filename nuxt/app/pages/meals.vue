@@ -8,14 +8,27 @@ import { boringRecipes, type Recipe } from '~/data/recipes'
 
 const toast = useToast()
 
-// Use ref to avoid SSR/CSR hydration mismatch with dates
-const weekStart = ref(startOfWeek(new Date(), { weekStartsOn: 1 }))
+// Use ref with static default to avoid SSR/CSR hydration mismatch with dates
+// Initialize with epoch to ensure consistent SSR output, then update on client
+const weekStart = ref(new Date(0))
 const todayStr = ref('')
+const isClient = ref(false)
 
 onMounted(() => {
   // Set date values only on client to avoid hydration mismatch
   weekStart.value = startOfWeek(new Date(), { weekStartsOn: 1 })
   todayStr.value = format(new Date(), 'yyyy-MM-dd')
+  isClient.value = true
+
+  // Load user stats from localStorage only on client
+  const stored = localStorage.getItem('boring-user-stats')
+  if (stored) {
+    try {
+      userStatsStorage.value = JSON.parse(stored)
+    } catch {
+      userStatsStorage.value = { ...defaultUserStats }
+    }
+  }
 })
 
 // API-backed composables
@@ -46,8 +59,8 @@ const days = computed(() => {
   })
 })
 
-// Get user stats from onboarding (stored in localStorage)
-const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
+// Default user stats (used until localStorage loads on client)
+const defaultUserStats: UserStats = {
   sex: 'male',
   age: 30,
   heightCm: 178,
@@ -56,7 +69,10 @@ const userStatsStorage = useLocalStorage<UserStats>('boring-user-stats', {
   dailySteps: 8000,
   goal: 'maintain',
   aggression: 'safe'
-})
+}
+
+// Use ref to avoid SSR/CSR hydration mismatch with localStorage
+const userStatsStorage = ref<UserStats>({ ...defaultUserStats })
 
 // Calculate macro targets
 const { calculateMacros } = useMacroCalculator()
