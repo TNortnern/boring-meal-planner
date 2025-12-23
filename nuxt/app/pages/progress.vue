@@ -84,12 +84,14 @@ const progressToGoal = computed(() => {
 const latestMeasurement = computed(() => progressLogs.latestMeasurement.value || { waist: 0, chest: 0, arms: 0, thighs: 0, bodyFat: undefined })
 const firstMeasurement = computed(() => progressLogs.firstMeasurement.value || { waist: 0, chest: 0, arms: 0, thighs: 0, bodyFat: undefined })
 
-// Check-in data
+// Check-in data - use placeholder date to avoid SSR hydration mismatch
 const lastCheckIn = computed(() => {
   const history = progressLogs.checkInHistory.value
+  // Use epoch date as placeholder - actual date comes from real data
+  const placeholderDate = new Date(0)
   if (history.length === 0) {
     return {
-      date: new Date(),
+      date: placeholderDate,
       weight: currentWeight.value,
       waist: 0,
       chest: 0,
@@ -102,7 +104,7 @@ const lastCheckIn = computed(() => {
   const latest = history[0]
   if (!latest) {
     return {
-      date: new Date(),
+      date: placeholderDate,
       weight: currentWeight.value,
       waist: 0,
       chest: 0,
