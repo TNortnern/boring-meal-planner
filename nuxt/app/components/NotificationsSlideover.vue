@@ -5,6 +5,18 @@ import type { Notification } from '~/types'
 const { isNotificationsSlideoverOpen } = useDashboard()
 
 const { data: notifications } = await useFetch<Notification[]>('/api/notifications')
+
+// Track client-side to avoid hydration mismatch with formatTimeAgo
+const isClient = ref(false)
+onMounted(() => {
+  isClient.value = true
+})
+
+// Format time - return empty string during SSR to avoid hydration mismatch
+const formatTime = (date: string) => {
+  if (!isClient.value) return ''
+  return formatTimeAgo(new Date(date))
+}
 </script>
 
 <template>
@@ -38,7 +50,7 @@ const { data: notifications } = await useFetch<Notification[]>('/api/notificatio
             <time
               :datetime="notification.date"
               class="text-muted text-xs"
-              v-text="formatTimeAgo(new Date(notification.date))"
+              v-text="formatTime(notification.date)"
             />
           </p>
 
