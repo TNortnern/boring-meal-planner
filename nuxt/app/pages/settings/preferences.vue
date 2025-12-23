@@ -9,25 +9,38 @@ const parseCommaList = (str: string | undefined): string[] => {
   return str.split(',').map(s => s.trim()).filter(Boolean)
 }
 
+// Track client-side to avoid hydration mismatch with colorMode
+const isClient = ref(false)
+
 const preferences = reactive({
   boringMode: user.value?.boringMode ?? true,
   mealsPerDay: user.value?.preferences?.mealsPerDay ?? 3,
   cookEverything: user.value?.preferences?.cookEverything ?? true,
   repeatMeals: user.value?.preferences?.repeatMeals ?? true,
   cardioPreference: user.value?.preferences?.cardioPreference ?? 'incline_walk',
-  darkMode: colorMode.value === 'dark',
+  darkMode: false, // Set in onMounted to avoid hydration mismatch
   notifications: true,
   weeklyReminders: true
 })
 
-// Watch for dark mode changes and sync with colorMode
-watch(() => preferences.darkMode, (newValue) => {
-  colorMode.preference = newValue ? 'dark' : 'light'
+// Set darkMode on client only to avoid hydration mismatch
+onMounted(() => {
+  isClient.value = true
+  preferences.darkMode = colorMode.value === 'dark'
 })
 
-// Watch for external colorMode changes and sync with preferences
+// Watch for dark mode changes and sync with colorMode (only on client)
+watch(() => preferences.darkMode, (newValue) => {
+  if (isClient.value) {
+    colorMode.preference = newValue ? 'dark' : 'light'
+  }
+})
+
+// Watch for external colorMode changes and sync with preferences (only on client)
 watch(() => colorMode.value, (newValue) => {
-  preferences.darkMode = newValue === 'dark'
+  if (isClient.value) {
+    preferences.darkMode = newValue === 'dark'
+  }
 })
 
 const allergies = ref<string[]>(parseCommaList(user.value?.dietaryRestrictions?.allergies))
